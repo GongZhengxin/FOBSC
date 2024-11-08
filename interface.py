@@ -17,7 +17,7 @@ from PyQt6.QtCore import QAbstractTableModel, Qt, QThread, pyqtSignal
 # 更新 PreprocessingThread 以接受 MATLAB 引擎实例
 class PreprocessingThread(QThread):
     progress = pyqtSignal(str)  # 定义一个信号用于传递进度信息
-
+    finishedsignal = pyqtSignal(np.ndarray)
     def __init__(self, selections, parameters, matlab_engine, parent=None):
         super().__init__(parent)
         self.selections = selections
@@ -43,8 +43,19 @@ class PreprocessingThread(QThread):
             if self.selections['lfp_process']:
                 self.progress.emit("[Process] 执行 LFP Process...")
                 # self.matlab_engine.lfp_process(nargout=0)  # 假设 MATLAB 中有名为 lfp_process 的函数
-            time.sleep(1)
-            self.progress.emit("[Process] Process Done!")
+            time.sleep(0.5)
+            processde_dir = os.path.join(current_directory, "processed")
+            if os.path.exists(processde_dir):
+                Respfile = [_ for _ in processde_dir if 'RespMat_' in _ and '.npy' in _]
+                if len(Respfile) == 1:
+                    main_data = np.load(Respfile[0])
+                elif len(Respfile) == 0:
+                    self.progress.emit("[Process] No successful response matrix produced!")
+                    main_data = np.array([])
+                else:
+                    self.progress.emit("[Process] More than 1 successful response matrix existed!")
+                    main_data = np.array([])
+            self.finishedsignal.emit(main_data)
 
         except Exception as e:
             self.progress.emit(f"预处理发生错误: {str(e)}")
@@ -248,7 +259,7 @@ class MainWindow(QMainWindow):
         # 文件检查和 Kilosort 相关属性
         self.folder_path = None
 
-        self.maindata = None  # Will store the resp_matrix for reuse
+        self.main_data = np.array([])  # Will store the resp_matrix for reuse
         
         self.FIGS_button = self.findChild(QtWidgets.QPushButton, 'pushButton_figs')
         self.graphicsView = self.findChild(QtWidgets.QGraphicsView, 'graphicsView')
@@ -292,20 +303,50 @@ class MainWindow(QMainWindow):
                     info_file_path = os.path.join(self.folder_path, info_file)
                     if not os.path.exists(info_file_path):
                         raise FileNotFoundError(f"找不到文件: {info_file_path}")            
-                    df = pd.read_csv(info_file_path, sep='\t')  # 使用 pandas 读取 TSV 文件
+                    self.indo_df = pd.read_csv(info_file_path, sep='\t')  # 使用 pandas 读取 TSV 文件
                     # 假设：base.ui 中有一个 QTableView，名为 tableView
-                    model = PandasModel(df)  # 创建 Pandas 数据模型
+                    model = PandasModel(self.indo_df)  # 创建 Pandas 数据模型
                     self.tableView.setModel(model)  # 设置模型以显示数据
                     # 提取 FOB 列的 unique 元素
-                    unique_elements = df['FOB'].unique()
+                    unique_elements = self.indo_df['FOB'].unique()
                     # 假设：base.ui 中有一个 QListWidget，名为 listWidget_FOB
                     self.listWidget_FOB.clear()
                     self.listWidget_FOB.addItems(unique_elements)  # 将 unique 元素添加到 QListWidget 中
                     self.append_message(f"[LOAD] {self.folder_path} !")
-
+                processde_dir = os.path.join(self.folder_path, "processed")
+                if os.path.exists(processde_dir):
+                    Respfile = [_ for _ in os.listdir(processde_dir) if 'RespMat_' in _ and '.npy' in _]
+                    if len(Respfile) == 1:
+                        self.main_data = np.load(os.path.join(processde_dir, Respfile[0]))
+                        self.append_message(f"[Data] Response Data {self.main_data.shape} Loaded, OK for FOB check")
+                    else:
+                        self.append_message(f"[Data] Fail to load Response Data")
+                        pass # TODO : operatiosn needed if more than 1 file 
+                    Spkfile = [_ for _ in os.listdir(processde_dir) if 'SpikePos_' in _ and '.npy' in _]
+                    if len(Spkfile) == 1:
+                        self.spikepos = np.load(os.path.join(processde_dir, Spkfile[0]))
+                        self.append_message(f"[Data] Spike pos data loaded {self.spikepos.shape}")
+                    else:
+                        self.append_message(f"[Data] Fail to load Response Data")
+                        pass # TODO : operatiosn needed if more than 1 file 
+                    GoodUnitStr = [_ for _ in os.listdir(processde_dir) if 'GoodUnit_' in _ and '.mat' in _]
+                    if len(GoodUnitStr) == 1:
+                        with h5py.File(os.path.join(processde_dir, GoodUnitStr[0]), 'r') as f:
+                            self.pre_onset = np.squeeze(f["global_params"]['pre_onset'][:])
+                            self.post_onset = np.squeeze(f["global_params"]['post_onset'][:])
+                            self.psth_range = np.squeeze(f["global_params"]['PsthRange'][:])
+                        self.append_message(f"[Data] Pre onset {self.pre_onset}; Post onset {self.post_onset}")
+                        if len(self.psth_range) != (self.pre_onset + self.post_onset):
+                            QMessageBox.critical(self, "错误", f"发生错误: GoodUnit global parameter 中 psthrange 与 preonset & postonset 不匹配")
+                    else:
+                        self.append_message(f"[Data] Fail to load meta data")
+                        pass # TODO : operatiosn needed if more than 1 file 
                 kilosort_dir = os.path.join(self.folder_path, 'kilosort_def_5block_97') # check file # TODO : more prepared
                 if not os.path.exists(kilosort_dir):
-                    self.start_kilosort_process()
+                    # self.start_kilosort_process()
+                    pass
+                else:
+                    self.append_message(f"[Kilosort] Aready exists kilosort_def_5block_97")
             else: pass
         except Exception as e:
             QMessageBox.critical(self, "错误", f"发生错误: {str(e)}")
@@ -433,10 +474,18 @@ class MainWindow(QMainWindow):
                 with open(self.mat_log_file, 'w') as file: pass
                 self.start_log_watcher(self.mat_log_file)
                 self.preprocessing_thread.progress.connect(self.append_message)  # 将进度信息连接到 append_message 方法
+                self.preprocessing_thread.finishedsignal.connect(self.on_preprocess_finished)
                 self.preprocessing_thread.start()
                     
             else:
                 QMessageBox.warning(self, "Warning", f"稍后再试: 等待主进程激活 Matlab")
+
+    def on_preprocess_finished(self, main_data):
+        if len(main_data) > 0 :
+            self.main_data = main_data
+            self.append_message("[Process] Process done!")
+        else:
+            QMessageBox.critical(self, "Error", f"无法识别有效且唯一的 response_matrix_img 文件！请检查数据目录")
 
     def start_kilosort_process(self):
         try:
@@ -499,59 +548,88 @@ class MainWindow(QMainWindow):
                     self.contrastListWidget.takeItem(self.contrastListWidget.row(selected_item))
             elif action == fobcs_action:
                 if selected_item:
-                    self.calculate_dprime(selected_item.text())
+                    self.calculate_dprime(selected_item)
         except Exception as e:
-            QMessageBox.critical(self, "错误", f"发生错误: {str(e)}")
+            QMessageBox.critical(self, "错误", f"show_contrast_context_menu 发生错误: {str(e)}")
 
     def calculate_dprime(self, contrast):
         try:
             # Check if maindata is available
-            if self.maindata is None:
-                processed_path = os.path.join(self.folder_path, 'processed', 'GoodUnit.mat')
+            if  len(self.main_data) == 1:
+                processed_path = [ os.path.join(self.folder_path, 'processed', _) \
+                                  for _ in os.listdir(os.path.join(self.folder_path, 'processed')) if 'RespMat_' in _ and '.npy' in _][0] 
                 if not os.path.exists(processed_path):
-                    QMessageBox.warning(self, "Warning", "GoodUnit.mat not found in processed directory.")
+                    QMessageBox.warning(self, "Warning", ".mat not found in processed directory.")
                     return
                 else:
-                    with h5py.File(processed_path, 'r') as f:
-                        self.maindata = np.array(f['resp_matrix']) 
+                    self.main_data = np.load(processed_path)
             # Calculate dprime based on the contrast definition (example only)
-            # Assuming contrast is in format "A_vs_B"
-            A, B = contrast.split('_vs_')
-            a_indices = [int(x) for x in A.split(',')]  # Example way to parse indices for group A
-            b_indices = [int(x) for x in B.split(',')]  # Example way to parse indices for group B
-            
-            # Extract data from maindata for groups A and B
-            data_a = self.maindata[a_indices]
-            data_b = self.maindata[b_indices]
+            contrast_value = contrast.data(QtCore.Qt.ItemDataRole.UserRole)
+
+            if (len(contrast_value[0]) > 0)  and (len(contrast_value[1]) > 0):
+                a_items, b_items = contrast_value
+                print(a_items, b_items)
+            fob_array = self.indo_df['FOB'].values
+            a_indices, b_indices = [], []
+            for a_cate in a_items:
+                a_indices.append(np.where(fob_array==a_cate)[0])
+            for b_cate in b_items:
+                b_indices.append(np.where(fob_array==b_cate)[0])
+            a_indices, b_indices = np.concatenate(a_indices), np.concatenate(b_indices)
+
+            # Prefer & contrast
+            prefer = " ".join(list(a_items))
+            contrasttitle = contrast.text()
+
+            # Extract data from maindata for groups A and B # TODO: preonset post onset logic
+            firing_window_ms = (60, 220)
+            fire_indices = np.where((self.psth_range >= firing_window_ms[0]) & (self.psth_range < firing_window_ms[1]))[0]
+            fire_mat = self.main_data[:, fire_indices].mean(axis=1)
+            data_a = self.main_data[a_indices][:, fire_indices].mean(axis=1)
+            data_b = self.main_data[b_indices][:, fire_indices].mean(axis=1)
             
             # Calculate dprime
             mean_diff = np.mean(data_a, axis=0) - np.mean(data_b, axis=0)
             pooled_sd = np.sqrt((np.var(data_a, axis=0) + np.var(data_b, axis=0)) / 2)
             dprime = mean_diff / pooled_sd
-            
-            # Plot dprime
-            self.plot_dprime(dprime)
+            # Plot 
+            self.plot_mainfigure(fire_mat, dprime, prefer, contrasttitle)
+
         except Exception as e:
             QMessageBox.warning(self, "Error", f"Error calculating dprime: {str(e)}")
     
-    def plot_dprime(self, dprime):
+    def plot_mainfigure(self, fire_mat, dprime, prefer='Pref', contrasttitle='Contrast'):
         try:
             # Plot the dprime values and display in graphicsView
-            from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+            from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
             from matplotlib.figure import Figure
+            from scipy.stats import zscore
 
+            draw_data = fire_mat[:, np.argsort(dprime)[::-1]]
+            draw_data = zscore(draw_data, axis=0)
+            # 创建一个1行2列的图
             figure = Figure()
-            ax = figure.add_subplot(111)
-            ax.plot(dprime)
-            ax.set_title('D-prime')
-            ax.set_xlabel('Feature Index')
-            ax.set_ylabel('D-prime Value')
+            # 第一个子图：imshow
+            ax1 = figure.add_subplot(1, 3, 1)
+            im = ax1.imshow(draw_data.transpose(), cmap='RdBu_r', vmin=-2, vmax=2, aspect='auto')
+            ax1.set_title('RedPlot')
+            ax1.set_xlabel('Pictures')
+            ax1.set_ylabel(f"Neurons (sorted by {prefer} d')")
+            # 第二个子图：plot
+            ax2 = figure.add_subplot(1, 3, 3)
+            x = dprime
+            y = np.squeeze(self.spikepos)[1,:]
+            ax2.scatter(x, y)
+            ax2.axvline(x=0.2, ls='--')
+            ax2.set_title("d' ~ Depth")
+            ax2.set_xlabel(f"{prefer} d'")
+            ax2.set_ylabel(f"Depth")
             
             canvas = FigureCanvas(figure)
             self.graphicsViewScene.clear()
             self.graphicsViewScene.addWidget(canvas)
         except Exception as e:
-            QMessageBox.critical(self, "错误", f"发生错误: {str(e)}")
+            QMessageBox.critical(self, "错误", f"plot_mainfigure 发生错误: {str(e)}")
 
     def load_figure(self):
         try:
@@ -567,7 +645,7 @@ class MainWindow(QMainWindow):
                 self.graphicsViewScene.clear()
                 self.graphicsViewScene.addPixmap(scaled_pixmap)
         except Exception as e:
-            QMessageBox.critical(self, "错误", f"发生错误: {str(e)}")
+            QMessageBox.critical(self, "错误", f"load_figure 发生错误: {str(e)}")
 
 # 自定义数据模型，用于将 Pandas DataFrame 与 QTableView 兼容
 class PandasModel(QAbstractTableModel):
@@ -594,21 +672,7 @@ class PandasModel(QAbstractTableModel):
         return None
 
 
-# 使用 matplotlib 绘图的类，将绘图嵌入到 PyQt 界面中
-class PlotCanvas(FigureCanvas):
-    def __init__(self, parent=None):
-        fig = Figure()  # 创建一个 Figure
-        self.axes = fig.add_subplot(111)  # 添加子图
-        super(PlotCanvas, self).__init__(fig)  # 初始化绘图画布
-
-    def plot_dprime(self, data):
-        # 绘制 dprime 数据
-        self.axes.clear()  # 清除当前图像
-        self.axes.imshow(data)  # 绘制矩阵图
-        self.draw()  # 更新图像
-
 if __name__ == '__main__':
-
     try:
         app = QtWidgets.QApplication(sys.argv)
         window = MainWindow()

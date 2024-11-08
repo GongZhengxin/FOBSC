@@ -189,6 +189,11 @@ end
 GoodUnitStrc(good_idx:end)=[];
 global_params.PsthRange = psth_range(2:end);
 
+rmat_name_LOCAL = fullfile('processed',sprintf('RespMat_%s_g%s.npy',meta_file(1).name(13:end-7), meta_data.g_number));
+writeNPY(cat(3, GoodUnitStrc.response_matrix_img), rmat_name_LOCAL)
+
+spkpos_name_LOCAL = fullfile('processed',sprintf('SpikePos_%s_g%s.npy',meta_file(1).name(13:end-7), meta_data.g_number));
+writeNPY(cat(3, GoodUnitStrc.spikepos), spkpos_name_LOCAL)
 
 file_name_LOCAL = fullfile('processed',sprintf('GoodUnit_%s_g%s.mat',meta_file(1).name(13:end-7), meta_data.g_number));
 save(file_name_LOCAL, "GoodUnitStrc", "trial_ML","global_params",'meta_data','-v7.3')

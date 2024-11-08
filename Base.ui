@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1413</width>
-    <height>875</height>
+    <width>1400</width>
+    <height>869</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -96,9 +96,9 @@
     <property name="geometry">
      <rect>
       <x>406</x>
-      <y>590</y>
+      <y>572</y>
       <width>99</width>
-      <height>190</height>
+      <height>198</height>
      </rect>
     </property>
     <property name="font">
@@ -112,9 +112,9 @@
     <property name="geometry">
      <rect>
       <x>516</x>
-      <y>590</y>
+      <y>572</y>
       <width>99</width>
-      <height>190</height>
+      <height>198</height>
      </rect>
     </property>
     <property name="font">
@@ -128,9 +128,9 @@
     <property name="geometry">
      <rect>
       <x>637</x>
-      <y>590</y>
+      <y>572</y>
       <width>99</width>
-      <height>190</height>
+      <height>198</height>
      </rect>
     </property>
     <property name="font">
@@ -159,8 +159,8 @@
    <widget class="QLabel" name="label_2">
     <property name="geometry">
      <rect>
-      <x>409</x>
-      <y>543</y>
+      <x>410</x>
+      <y>538</y>
       <width>111</width>
       <height>31</height>
      </rect>
@@ -193,8 +193,8 @@
    <widget class="Line" name="minus">
     <property name="geometry">
      <rect>
-      <x>618</x>
-      <y>661</y>
+      <x>620</x>
+      <y>660</y>
       <width>16</width>
       <height>31</height>
      </rect>
@@ -212,8 +212,8 @@
    <widget class="QPushButton" name="pushButton_gencontrast">
     <property name="geometry">
      <rect>
-      <x>635</x>
-      <y>544</y>
+      <x>636</x>
+      <y>539</y>
       <width>101</width>
       <height>31</height>
      </rect>
@@ -224,8 +224,8 @@
        <colorrole role="ButtonText">
         <brush brushstyle="SolidPattern">
          <color alpha="255">
-          <red>44</red>
-          <green>135</green>
+          <red>119</red>
+          <green>6</green>
           <blue>232</blue>
          </color>
         </brush>
@@ -235,8 +235,8 @@
        <colorrole role="ButtonText">
         <brush brushstyle="SolidPattern">
          <color alpha="255">
-          <red>44</red>
-          <green>135</green>
+          <red>119</red>
+          <green>6</green>
           <blue>232</blue>
          </color>
         </brush>
@@ -270,9 +270,9 @@
    <widget class="QLabel" name="label_3">
     <property name="geometry">
      <rect>
-      <x>750</x>
-      <y>543</y>
-      <width>111</width>
+      <x>756</x>
+      <y>538</y>
+      <width>91</width>
       <height>31</height>
      </rect>
     </property>
@@ -292,9 +292,9 @@
     <property name="geometry">
      <rect>
       <x>748</x>
-      <y>590</y>
+      <y>572</y>
       <width>99</width>
-      <height>190</height>
+      <height>198</height>
      </rect>
     </property>
     <property name="font">
@@ -320,8 +320,8 @@
    <widget class="QPushButton" name="pushButton_clearall">
     <property name="geometry">
      <rect>
-      <x>520</x>
-      <y>544</y>
+      <x>521</x>
+      <y>539</y>
       <width>91</width>
       <height>31</height>
      </rect>
@@ -378,10 +378,10 @@
    <widget class="QPushButton" name="pushButton_preprocess">
     <property name="geometry">
      <rect>
-      <x>420</x>
-      <y>790</y>
-      <width>411</width>
-      <height>31</height>
+      <x>554</x>
+      <y>772</y>
+      <width>151</width>
+      <height>50</height>
      </rect>
     </property>
     <property name="sizePolicy">
@@ -396,9 +396,9 @@
        <colorrole role="ButtonText">
         <brush brushstyle="SolidPattern">
          <color alpha="255">
-          <red>170</red>
-          <green>144</green>
-          <blue>66</blue>
+          <red>10</red>
+          <green>170</green>
+          <blue>165</blue>
          </color>
         </brush>
        </colorrole>
@@ -407,9 +407,9 @@
        <colorrole role="ButtonText">
         <brush brushstyle="SolidPattern">
          <color alpha="255">
-          <red>170</red>
-          <green>144</green>
-          <blue>66</blue>
+          <red>10</red>
+          <green>170</green>
+          <blue>165</blue>
          </color>
         </brush>
        </colorrole>
@@ -491,13 +491,155 @@
      <string>FIGs</string>
     </property>
    </widget>
+   <widget class="QPushButton" name="pushButton_fobparams">
+    <property name="geometry">
+     <rect>
+      <x>706</x>
+      <y>772</y>
+      <width>151</width>
+      <height>50</height>
+     </rect>
+    </property>
+    <property name="sizePolicy">
+     <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+      <horstretch>0</horstretch>
+      <verstretch>0</verstretch>
+     </sizepolicy>
+    </property>
+    <property name="palette">
+     <palette>
+      <active>
+       <colorrole role="ButtonText">
+        <brush brushstyle="SolidPattern">
+         <color alpha="255">
+          <red>38</red>
+          <green>139</green>
+          <blue>170</blue>
+         </color>
+        </brush>
+       </colorrole>
+      </active>
+      <inactive>
+       <colorrole role="ButtonText">
+        <brush brushstyle="SolidPattern">
+         <color alpha="255">
+          <red>38</red>
+          <green>139</green>
+          <blue>170</blue>
+         </color>
+        </brush>
+       </colorrole>
+      </inactive>
+      <disabled>
+       <colorrole role="ButtonText">
+        <brush brushstyle="SolidPattern">
+         <color alpha="255">
+          <red>120</red>
+          <green>120</green>
+          <blue>120</blue>
+         </color>
+        </brush>
+       </colorrole>
+      </disabled>
+     </palette>
+    </property>
+    <property name="font">
+     <font>
+      <family>Arial Black</family>
+      <pointsize>12</pointsize>
+     </font>
+    </property>
+    <property name="text">
+     <string>FOBSC params</string>
+    </property>
+    <property name="autoDefault">
+     <bool>false</bool>
+    </property>
+    <property name="default">
+     <bool>false</bool>
+    </property>
+    <property name="flat">
+     <bool>false</bool>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="pushButton_kilosort">
+    <property name="geometry">
+     <rect>
+      <x>402</x>
+      <y>772</y>
+      <width>151</width>
+      <height>50</height>
+     </rect>
+    </property>
+    <property name="sizePolicy">
+     <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+      <horstretch>0</horstretch>
+      <verstretch>0</verstretch>
+     </sizepolicy>
+    </property>
+    <property name="palette">
+     <palette>
+      <active>
+       <colorrole role="ButtonText">
+        <brush brushstyle="SolidPattern">
+         <color alpha="255">
+          <red>42</red>
+          <green>170</green>
+          <blue>85</blue>
+         </color>
+        </brush>
+       </colorrole>
+      </active>
+      <inactive>
+       <colorrole role="ButtonText">
+        <brush brushstyle="SolidPattern">
+         <color alpha="255">
+          <red>42</red>
+          <green>170</green>
+          <blue>85</blue>
+         </color>
+        </brush>
+       </colorrole>
+      </inactive>
+      <disabled>
+       <colorrole role="ButtonText">
+        <brush brushstyle="SolidPattern">
+         <color alpha="255">
+          <red>120</red>
+          <green>120</green>
+          <blue>120</blue>
+         </color>
+        </brush>
+       </colorrole>
+      </disabled>
+     </palette>
+    </property>
+    <property name="font">
+     <font>
+      <family>Arial Black</family>
+      <pointsize>12</pointsize>
+     </font>
+    </property>
+    <property name="text">
+     <string>KiloSort</string>
+    </property>
+    <property name="autoDefault">
+     <bool>false</bool>
+    </property>
+    <property name="default">
+     <bool>false</bool>
+    </property>
+    <property name="flat">
+     <bool>false</bool>
+    </property>
+   </widget>
   </widget>
   <widget class="QMenuBar" name="menubar">
    <property name="geometry">
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1413</width>
+     <width>1400</width>
      <height>23</height>
     </rect>
    </property>
