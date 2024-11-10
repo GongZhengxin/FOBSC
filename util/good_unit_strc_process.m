@@ -189,6 +189,7 @@ for spike_num = 1:length(UnitStrc)
     end
     log_message(log_file, sprintf('%d good, look %d in %d \n', good_idx-1,spike_num,length(UnitStrc)))
 end
+close all;
 GoodUnitStrc(good_idx:end)=[];
 global_params.PsthRange = psth_range(2:end);
 

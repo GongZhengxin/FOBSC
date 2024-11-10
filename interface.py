@@ -51,10 +51,12 @@ class PreprocessingThread(QThread):
                 # self.matlab_engine.lfp_process(nargout=0)  # 假设 MATLAB 中有名为 lfp_process 的函数
             time.sleep(0.5)
             processde_dir = os.path.join(current_directory, "processed")
+            self.progress.emit(f"[Process] reading {processde_dir}")
             if os.path.exists(processde_dir):
-                Respfile = [_ for _ in processde_dir if 'RespMat_' in _ and '.npy' in _]
+                Respfile = [_ for _ in processde_dir if ('RespMat_' in _ ) and ('.npy' in _)]
                 if len(Respfile) == 1:
-                    main_data = np.load(Respfile[0])
+                    main_data = np.load(os.path.join(processde_dir, Respfile[0]))
+                    self.progress.emit(f"[Process] Get data {main_data.shape} ")
                 elif len(Respfile) == 0:
                     self.progress.emit("[Process] No successful response matrix produced!")
                     main_data = np.array([])
@@ -363,21 +365,21 @@ class MainWindow(QMainWindow):
                     self.append_message(f"[LOAD] {self.folder_path} !")
                 processde_dir = os.path.join(self.folder_path, "processed")
                 if os.path.exists(processde_dir):
-                    Respfile = [_ for _ in os.listdir(processde_dir) if 'RespMat_' in _ and '.npy' in _]
+                    Respfile = [_ for _ in os.listdir(processde_dir) if ('RespMat_' in _) and ('.npy' in _)]
                     if len(Respfile) == 1:
                         self.main_data = np.load(os.path.join(processde_dir, Respfile[0]))
                         self.append_message(f"[Data] Response Data {self.main_data.shape} Loaded, OK for FOB check")
                     else:
                         self.append_message(f"[Data] Fail to load Response Data")
                         pass # TODO : operatiosn needed if more than 1 file 
-                    Spkfile = [_ for _ in os.listdir(processde_dir) if 'SpikePos_' in _ and '.npy' in _]
+                    Spkfile = [_ for _ in os.listdir(processde_dir) if ('SpikePos_' in _) and ('.npy' in _)]
                     if len(Spkfile) == 1:
                         self.spikepos = np.load(os.path.join(processde_dir, Spkfile[0]))
                         self.append_message(f"[Data] Spike pos data loaded {self.spikepos.shape}")
                     else:
                         self.append_message(f"[Data] Fail to load Response Data")
                         pass # TODO : operatiosn needed if more than 1 file 
-                    GoodUnitStr = [_ for _ in os.listdir(processde_dir) if 'GoodUnit_' in _ and '.mat' in _]
+                    GoodUnitStr = [_ for _ in os.listdir(processde_dir) if ('GoodUnit_' in _ )and ('.mat' in _)]
                     if len(GoodUnitStr) == 1:
                         with h5py.File(os.path.join(processde_dir, GoodUnitStr[0]), 'r') as f:
                             self.pre_onset = np.squeeze(f["global_params"]['pre_onset'][:])
