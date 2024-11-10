@@ -40,10 +40,14 @@ class PreprocessingThread(QThread):
             if self.selections['good_unit_strc']:
                 pre_onset, post_onset, psth_window_size = self.parameters
                 self.progress.emit(f"[Process] 执行 GoodUnitStrc Process... \n     [Parameter] pre_onset={pre_onset}\n     [Parameter] post_onset={post_onset}\n     [Parameter] psth_window_size={psth_window_size}")
-                # self.matlab_engine.good_unit_strc_process(pre_onset, post_onset, psth_window_size, nargout=0)  # 假设 MATLAB 函数
+                self.matlab_engine.workspace['pre_onset'] = pre_onset
+                self.matlab_engine.workspace['post_onset'] = post_onset
+                self.matlab_engine.workspace['psth_window_size'] = psth_window_size
+                self.matlab_engine.run("good_unit_strc_process.m", nargout=0)
             
             if self.selections['lfp_process']:
                 self.progress.emit("[Process] 执行 LFP Process...")
+                self.progress.emit(f"预处理发生错误: 当前没有完成 LFP 预处理模块")
                 # self.matlab_engine.lfp_process(nargout=0)  # 假设 MATLAB 中有名为 lfp_process 的函数
             time.sleep(0.5)
             processde_dir = os.path.join(current_directory, "processed")
