@@ -31,17 +31,17 @@ mkdir processed/data_viewer
 if ~exist('pre_onset', 'var')
     pre_onset = 50;
 end
-global_params.pre_onset = pre_onset;
+global_params.pre_onset = double(pre_onset);
 if ~exist('post_onset', 'var')
     post_onset = 300;
 end
-global_params.post_onset = post_onset;
+global_params.post_onset = double(post_onset);
 good_idx = 1;
 
 if ~exist('psth_window_size_ms', 'var')
     psth_window_size_ms = 20;
 end
-
+psth_window_size_ms = double(psth_window_size_ms);
 switch global_params.m_strctStimulusParams.onset_time
     case 150
         base_line_time = -25:25;
