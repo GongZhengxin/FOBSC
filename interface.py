@@ -13,6 +13,8 @@ from PyQt6 import uic, QtCore, QtWidgets
 from PyQt6.QtWidgets import QGraphicsScene
 from PyQt6.QtWidgets import QApplication, QMainWindow, QFileDialog, QMessageBox, QListWidget, QTableView, QTextBrowser
 from PyQt6.QtCore import QAbstractTableModel, Qt, QThread, pyqtSignal
+import pathlib
+
 
 # 更新 PreprocessingThread 以接受 MATLAB 引擎实例
 class PreprocessingThread(QThread):
@@ -198,6 +200,40 @@ class LogWatcherThread(QThread):
     def stop(self):
         self._running = False
 
+class FobscparamDialog(QtWidgets.QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.initUI()
+
+    def initUI(self):
+        self.setWindowTitle('Set Firing Window')
+
+        layout = QtWidgets.QVBoxLayout()
+        self.lower_bound_edit = QtWidgets.QLineEdit(self)
+        self.upper_bound_edit = QtWidgets.QLineEdit(self)
+        # Set default values for the firing window
+        self.lower_bound_edit.setText("60")  # Default lower bound value
+        self.upper_bound_edit.setText("220")  # Default upper bound value
+
+        layout.addWidget(QtWidgets.QLabel('Lower Bound (ms):'))
+        layout.addWidget(self.lower_bound_edit)
+        layout.addWidget(QtWidgets.QLabel('Upper Bound (ms):'))
+        layout.addWidget(self.upper_bound_edit)
+
+        button_box = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.StandardButton.Ok | QtWidgets.QDialogButtonBox.StandardButton.Cancel)
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+
+        layout.addWidget(button_box)
+        self.setLayout(layout)
+
+    def get_values(self):
+        lower_bound = int(self.lower_bound_edit.text())
+        upper_bound = int(self.upper_bound_edit.text())
+        self.lower_bound_edit.setText(f"{lower_bound}")  # Default lower bound value
+        self.upper_bound_edit.setText(f"{upper_bound}")
+        return lower_bound, upper_bound
+
 # 假设：你已经创建了一个名为 base.ui 的文件，通过Qt Designer设计了基本界面。
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -222,12 +258,14 @@ class MainWindow(QMainWindow):
 
         # 设置拖放行为
         self.fobListWidget.setDragEnabled(True)
+        self.fobListWidget.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.ExtendedSelection)
         # self.fobListWidget.setAcceptDrops(True)
         self.boxAListWidget.setAcceptDrops(True)
         self.boxBListWidget.setAcceptDrops(True)
         self.boxAListWidget.setDragDropMode(QtWidgets.QAbstractItemView.DragDropMode.DragDrop)
         self.boxBListWidget.setDragDropMode(QtWidgets.QAbstractItemView.DragDropMode.DragDrop)
-        
+        self.boxAListWidget.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.ExtendedSelection)
+        self.boxBListWidget.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.ExtendedSelection)
         # 连接按钮点击信号
         self.generateButton.clicked.connect(self.generate_contrast)
         self.contrastListWidget.itemDoubleClicked.connect(self.rename_contrast)
@@ -271,6 +309,12 @@ class MainWindow(QMainWindow):
         self.graphicsViewScene = QGraphicsScene()
         self.graphicsView.setScene(self.graphicsViewScene)
         
+        self.fobscparam_button = self.findChild(QtWidgets.QPushButton, 'pushButton_fobparams')
+        self.fobscparam_button.clicked.connect(self.open_fobscparam_dialog)
+        self.firing_window = (60, 220)
+        self.kilosort_button = self.findChild(QtWidgets.QPushButton, 'pushButton_kilosort')
+        self.kilosort_button.clicked.connect(self.run_kilosort_gui)
+
     def browse_check_load_folder(self):
         try:
             # 使用文件对话框选择文件夹
@@ -484,13 +528,33 @@ class MainWindow(QMainWindow):
         if len(main_data) > 0 :
             self.main_data = main_data
             self.append_message("[Process] Process done!")
+            processde_dir = os.path.join(self.folder_path, 'processed')
+            Spkfile = [_ for _ in os.listdir(processde_dir) if 'SpikePos_' in _ and '.npy' in _]
+            if len(Spkfile) == 1:
+                self.spikepos = np.load(os.path.join(processde_dir, Spkfile[0]))
+                self.append_message(f"[Data] Spike pos data loaded {self.spikepos.shape}")
+            else:
+                self.append_message(f"[Data] Fail to load Response Data")
+                pass # TODO : operatiosn needed if more than 1 file 
+            GoodUnitStr = [_ for _ in os.listdir(processde_dir) if 'GoodUnit_' in _ and '.mat' in _]
+            if len(GoodUnitStr) == 1:
+                with h5py.File(os.path.join(processde_dir, GoodUnitStr[0]), 'r') as f:
+                    self.pre_onset = np.squeeze(f["global_params"]['pre_onset'][:])
+                    self.post_onset = np.squeeze(f["global_params"]['post_onset'][:])
+                    self.psth_range = np.squeeze(f["global_params"]['PsthRange'][:])
+                self.append_message(f"[Data] Pre onset {self.pre_onset}; Post onset {self.post_onset}")
+                if len(self.psth_range) != (self.pre_onset + self.post_onset):
+                    QMessageBox.critical(self, "错误", f"发生错误: GoodUnit global parameter 中 psthrange 与 preonset & postonset 不匹配")
+            else:
+                self.append_message(f"[Data] Fail to load meta data")
+                pass # TODO : operatiosn needed if more than 1 file 
         else:
             QMessageBox.critical(self, "Error", f"无法识别有效且唯一的 response_matrix_img 文件！请检查数据目录")
 
     def start_kilosort_process(self):
         try:
             self.append_message("[Kilosort] 进程准备启动... ")
-            kilosort_script_path = os.path.join(self.home, "npxkilosort.py")
+            kilosort_script_path = os.path.join(self.home, "util/npxkilosort.py")
             npx_fodler = [_ for _ in os.listdir(self.folder_path) if 'NPX_' in _][0]
             
             # 创建并启动 Kilosort 线程
@@ -515,6 +579,23 @@ class MainWindow(QMainWindow):
 
         # 向 textBrowser 添加一条启动消息
         self.append_message("[Log] 日志监视线程已启动...")
+
+    def open_fobscparam_dialog(self):
+        dialog = FobscparamDialog(self)
+        if dialog.exec() == QtWidgets.QDialog.DialogCode.Accepted:
+            lower_bound, upper_bound = dialog.get_values()
+            # Pass these parameters to the calculate dprime function
+            self.firing_window = (int(lower_bound), int(upper_bound))
+
+    def run_kilosort_gui(self):
+        try:
+            kilosort_path = os.path.join(self.folder_path, 'kilosort_def_5block_97')# Replace with the correct path
+            venv_name = pathlib.Path(sys.executable).parent.name  # Automatically find the virtual environment path
+            venv_python = sys.executable  # Use the current Python executable
+            cmd = f"cd {kilosort_path} && conda activate {venv_name} && phy template-gui params.py"
+            subprocess.Popen(cmd, shell=True)
+        except Exception as e:
+            QMessageBox.warning(self, "Error", f"Error run_kilosort_gui: {str(e)}")
 
     def closeEvent(self, event):
         try:
@@ -582,7 +663,7 @@ class MainWindow(QMainWindow):
             contrasttitle = contrast.text()
 
             # Extract data from maindata for groups A and B # TODO: preonset post onset logic
-            firing_window_ms = (60, 220)
+            firing_window_ms = (self.firing_window[0], self.firing_window[1])
             fire_indices = np.where((self.psth_range >= firing_window_ms[0]) & (self.psth_range < firing_window_ms[1]))[0]
             fire_mat = self.main_data[:, fire_indices].mean(axis=1)
             data_a = self.main_data[a_indices][:, fire_indices].mean(axis=1)
@@ -597,6 +678,11 @@ class MainWindow(QMainWindow):
 
         except Exception as e:
             QMessageBox.warning(self, "Error", f"Error calculating dprime: {str(e)}")
+
+    def get_random_color(self):
+        import random
+        r = lambda: random.randint(0, 255)
+        return f'#{r():02x}{r():02x}{r():02x}'
     
     def plot_mainfigure(self, fire_mat, dprime, prefer='Pref', contrasttitle='Contrast'):
         try:
@@ -608,7 +694,7 @@ class MainWindow(QMainWindow):
             draw_data = fire_mat[:, np.argsort(dprime)[::-1]]
             draw_data = zscore(draw_data, axis=0)
             # 创建一个1行2列的图
-            figure = Figure()
+            figure = Figure(figsize=(12,4.5))
             # 第一个子图：imshow
             ax1 = figure.add_subplot(1, 3, 1)
             im = ax1.imshow(draw_data.transpose(), cmap='RdBu_r', vmin=-2, vmax=2, aspect='auto')
@@ -619,13 +705,14 @@ class MainWindow(QMainWindow):
             ax2 = figure.add_subplot(1, 3, 3)
             x = dprime
             y = np.squeeze(self.spikepos)[1,:]
-            ax2.scatter(x, y)
-            ax2.axvline(x=0.2, ls='--')
+            ax2.scatter(x, y, s=40, color=self.get_random_color(), edgecolors='k', lw=0.5, zorder=4)
+            ax2.axvline(x=0.2, ls='--', color='k', alpha=0.7)
             ax2.set_title("d' ~ Depth")
             ax2.set_xlabel(f"{prefer} d'")
-            ax2.set_ylabel(f"Depth")
+            ax2.set_ylabel(f"Depth (μm)")
             
             canvas = FigureCanvas(figure)
+            # canvas.setFixedSize(self.graphicsViewScene.sceneRect().size().toSize())
             self.graphicsViewScene.clear()
             self.graphicsViewScene.addWidget(canvas)
         except Exception as e:
