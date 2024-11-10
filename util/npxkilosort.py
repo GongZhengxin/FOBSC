@@ -76,7 +76,7 @@ fig = plt.figure(figsize=(10,10), dpi=100)
 grid = gridspec.GridSpec(3, 3, figure=fig, hspace=0.5, wspace=0.5)
 
 ax = fig.add_subplot(grid[0,0])
-ax.plot(np.arange(0, ops['Nbatches'])*2, dshift);
+ax.plot(np.arange(0, ops['Nbatches'])*2, dshift)
 ax.set_xlabel('time (sec.)')
 ax.set_ylabel('drift (um)')
 

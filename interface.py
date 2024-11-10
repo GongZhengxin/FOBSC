@@ -664,21 +664,20 @@ class MainWindow(QMainWindow):
 
             # Prefer & contrast
             prefer = " ".join(list(a_items))
-            contrasttitle = contrast.text()
-
+            
             # Extract data from maindata for groups A and B # TODO: preonset post onset logic
             firing_window_ms = (self.firing_window[0], self.firing_window[1])
             fire_indices = np.where((self.psth_range >= firing_window_ms[0]) & (self.psth_range < firing_window_ms[1]))[0]
             fire_mat = self.main_data[:, fire_indices].mean(axis=1)
             data_a = self.main_data[a_indices][:, fire_indices].mean(axis=1)
             data_b = self.main_data[b_indices][:, fire_indices].mean(axis=1)
-            
+            title = f"{contrast.text()}_window({firing_window_ms[0]},{firing_window_ms[1]})ms"
             # Calculate dprime
             mean_diff = np.mean(data_a, axis=0) - np.mean(data_b, axis=0)
             pooled_sd = np.sqrt((np.var(data_a, axis=0) + np.var(data_b, axis=0)) / 2)
             dprime = mean_diff / pooled_sd
             # Plot 
-            self.plot_mainfigure(fire_mat, dprime, prefer, contrasttitle)
+            self.plot_mainfigure(fire_mat, dprime, prefer, title)
 
         except Exception as e:
             QMessageBox.warning(self, "Error", f"Error calculating dprime: {str(e)}")
@@ -688,33 +687,53 @@ class MainWindow(QMainWindow):
         r = lambda: random.randint(0, 255)
         return f'#{r():02x}{r():02x}{r():02x}'
     
-    def plot_mainfigure(self, fire_mat, dprime, prefer='Pref', contrasttitle='Contrast'):
+    def plot_mainfigure(self, fire_mat, dprime, prefer='Pref', title='Contrast'):
         try:
             # Plot the dprime values and display in graphicsView
             from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
             from matplotlib.figure import Figure
+            from matplotlib import pyplot as plt
             from scipy.stats import zscore
 
             draw_data = fire_mat[:, np.argsort(dprime)[::-1]]
             draw_data = zscore(draw_data, axis=0)
             # 创建一个1行2列的图
-            figure = Figure(figsize=(12,4.5))
-            # 第一个子图：imshow
+            figure = Figure(figsize=(13,4.5))
+            # 第1个子图：imshow
             ax1 = figure.add_subplot(1, 3, 1)
             im = ax1.imshow(draw_data.transpose(), cmap='RdBu_r', vmin=-2, vmax=2, aspect='auto')
             ax1.set_title('RedPlot')
             ax1.set_xlabel('Pictures')
             ax1.set_ylabel(f"Neurons (sorted by {prefer} d')")
-            # 第二个子图：plot
-            ax2 = figure.add_subplot(1, 3, 3)
+            pos = ax1.get_position()
+            cax = figure.add_axes([pos.x1-0.055, pos.y0 + 0.15, 0.005, 0.5 * pos.height])
+            cb = plt.colorbar(im, cax=cax)
+            cb.ax.yaxis.set_ticks_position('right')
+            cb.ax.yaxis.set_ticks([draw_data.min(), 0, draw_data.max()])
+            cb.ax.tick_params(direction='out', labelsize=9)
+            # 第2个子图：plot
+            ax2 = figure.add_subplot(1, 3, 2)
+            ax2.plot(np.sort(dprime), np.arange(len(dprime)), lw=2, color=self.get_random_color())
+            ax2.axvline(x=-0.2, lw=1, color='k')
+            ax2.axvline(x=0.2, lw=1, color='k')
+            ax2.set_xlabel(f"{prefer} d'")
+            ax2.set_ylabel(f"Neurons")
+            ax2.set_title(f"d' Rank")
+            # 第3个子图：plot
+            ax3 = figure.add_subplot(1, 3, 3)
             x = dprime
             y = np.squeeze(self.spikepos)[1,:]
-            ax2.scatter(x, y, s=40, color=self.get_random_color(), edgecolors='k', lw=0.5, zorder=4)
-            ax2.axvline(x=0.2, ls='--', color='k', alpha=0.7)
-            ax2.set_title("d' ~ Depth")
-            ax2.set_xlabel(f"{prefer} d'")
-            ax2.set_ylabel(f"Depth (μm)")
-            
+            ax3.scatter(x, y, s=40, color=self.get_random_color(), edgecolors='k', lw=0.5, zorder=4)
+            ax3.axvline(x=0.2, ls='--', color='k', alpha=0.7)
+            ax3.set_title("d' ~ Depth")
+            ax3.set_xlabel(f"{prefer} d'")
+            ax3.set_ylabel(f"Depth (μm)")
+            # 自动调整布局
+            # figure.tight_layout()
+            # 设置子图之间的水平间距
+            figure.suptitle(title)
+            figure.subplots_adjust(wspace=0.4) 
+            figure.subplots_adjust(left=0.05, right=0.95)
             canvas = FigureCanvas(figure)
             # canvas.setFixedSize(self.graphicsViewScene.sceneRect().size().toSize())
             self.graphicsViewScene.clear()
@@ -737,7 +756,7 @@ class MainWindow(QMainWindow):
                 self.graphicsViewScene.addPixmap(scaled_pixmap)
         except Exception as e:
             QMessageBox.critical(self, "错误", f"load_figure 发生错误: {str(e)}")
-
+                
 # 自定义数据模型，用于将 Pandas DataFrame 与 QTableView 兼容
 class PandasModel(QAbstractTableModel):
     def __init__(self, df=pd.DataFrame(), parent=None):
@@ -765,8 +784,10 @@ class PandasModel(QAbstractTableModel):
 
 if __name__ == '__main__':
     try:
+        from PyQt6.QtGui import QIcon
         app = QtWidgets.QApplication(sys.argv)
         window = MainWindow()
+        window.setWindowIcon(QIcon('./FOBSC2.ico')) 
         window.show()
         sys.exit(app.exec())
     except Exception as e:
