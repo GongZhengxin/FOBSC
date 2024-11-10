@@ -32,10 +32,12 @@ if ~exist('pre_onset', 'var')
     pre_onset = 50;
 end
 global_params.pre_onset = double(pre_onset);
+pre_onset = double(pre_onset);
 if ~exist('post_onset', 'var')
     post_onset = 300;
 end
 global_params.post_onset = double(post_onset);
+post_onset = double(post_onset);
 good_idx = 1;
 
 if ~exist('psth_window_size_ms', 'var')
