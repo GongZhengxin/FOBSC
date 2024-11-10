@@ -1,6 +1,6 @@
 % 日志内容
 log_file = [pwd, '\\process.log'];
-log_message(log_file, sprintf('日志记录开始\n'));
+log_message(log_file, sprintf('DataCheck日志记录开始\n'));
 
 mkdir processed % 创建用于保存处理后数据的目录
 %% Load Data
