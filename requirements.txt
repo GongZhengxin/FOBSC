@@ -25,7 +25,6 @@ kiwisolver==1.4.7
 llvmlite==0.43.0
 locket==1.0.0
 Markdown==3.7
-matlabengineforpython==9.14
 matplotlib==3.9.2
 mergedeep==1.3.4
 mkdocs==1.6.1
@@ -57,7 +56,7 @@ PyQtWebEngine==5.15.7
 PyQtWebEngine-Qt5==5.15.2
 pytz==2024.2
 pywin32==307
-pywin32-ctypes==0.2.3k
+pywin32-ctypes==0.2.3
 pyyaml_env_tag==0.1
 qtconsole==5.6.1
 QtPy==2.4.1
