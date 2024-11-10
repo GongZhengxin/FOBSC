@@ -387,7 +387,7 @@ class MainWindow(QMainWindow):
                         pass # TODO : operatiosn needed if more than 1 file 
                 kilosort_dir = os.path.join(self.folder_path, 'kilosort_def_5block_97') # check file # TODO : more prepared
                 if not os.path.exists(kilosort_dir):
-                    # self.start_kilosort_process()
+                    self.start_kilosort_process()
                     pass
                 else:
                     self.append_message(f"[Kilosort] Aready exists kilosort_def_5block_97")
