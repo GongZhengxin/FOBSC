@@ -53,7 +53,7 @@ class PreprocessingThread(QThread):
             processde_dir = os.path.join(current_directory, "processed")
             self.progress.emit(f"[Process] reading {processde_dir}")
             if os.path.exists(processde_dir):
-                Respfile = [_ for _ in processde_dir if ('RespMat_' in _ ) and ('.npy' in _)]
+                Respfile = [_ for _ in os.listdir(processde_dir) if ('RespMat_' in _ ) and ('.npy' in _)]
                 if len(Respfile) == 1:
                     main_data = np.load(os.path.join(processde_dir, Respfile[0]))
                     self.progress.emit(f"[Process] Get data {main_data.shape} ")
