@@ -626,7 +626,7 @@ class MainWindow(QMainWindow):
             kilosort_path = os.path.join(self.folder_path, 'kilosort_def_5block_97')# Replace with the correct path
             venv_name = pathlib.Path(sys.executable).parent.name  # Automatically find the virtual environment path
             venv_python = sys.executable  # Use the current Python executable
-            cmd = f"cd {kilosort_path} && conda activate {venv_name} && phy template-gui params.py"
+            cmd = f"cd {kilosort_path} && conda activate {venv_name} && phy template-gui {kilosort_path}/params.py"
             subprocess.Popen(cmd, shell=True)
         except Exception as e:
             QMessageBox.warning(self, "Error", f"Error run_kilosort_gui: {str(e)}")
