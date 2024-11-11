@@ -1,6 +1,6 @@
 @echo off
 :: 设置 conda 的基本路径
-SET "CONDA_BASE=D:\anaconda3"  
+:: SET "CONDA_BASE=D:\anaconda3"  
 
 :: 手动调用 activate.bat 脚本以初始化 conda 环境
 CALL "%CONDA_BASE%\Scripts\activate.bat" "%CONDA_BASE%"

@@ -363,19 +363,24 @@ class MainWindow(QMainWindow):
                     if not matched_files:
                         warningpattern = pattern.replace('_','')
                         missing_files.append(f" '{warningpattern}' 文件")
-
-                if missing_files:
-                    self.append_message("文件缺失", f"缺少以下文件: {', '.join(missing_files)}")
+                
+                if ("NPX" in missing_files) or (".bhv2" in missing_files):
+                    self.append_message(f"[file] 缺少以下文件: {', '.join(missing_files)}")
                     # 如果有缺少的文件，弹出警告窗口
-                    # QMessageBox.warning(self, "文件缺失", f"缺少以下文件: {', '.join(missing_files)}")
+                    QMessageBox.warning(self, "文件缺失", f"缺少以下文件: {', '.join(missing_files)}")
                 else:
-                    # 假设：info.tsv 文件中包含需要显示的数据
-                    info_file = [f for f in os.listdir(self.folder_path) if '_info.tsv' in f]
+                    if " 'info.tsv' 文件" in missing_files:
+                        self.append_message(f"[file] 缺少以下文件: {', '.join(missing_files)}")
+                        info_file, _ = QFileDialog.getOpenFileName(self, 'Select Info TSV File', self.folder_path, 'TSV Files (*.tsv)')
+                        info_file = [info_file]
+                        if not info_file:
+                            QMessageBox.critical(self, 'Error', 'No valid info.tsv file selected.')
+                    else:
+                        # 假设：info.tsv 文件中包含需要显示的数据
+                        info_file = [f for f in os.listdir(self.folder_path) if '_info.tsv' in f]
                     if len(info_file) == 1: info_file = info_file[0]
                     else: QMessageBox.warning(self, "文件冗余", f"Info File 找到了 {len(info_file)} 个： {info_file}")
                     info_file_path = os.path.join(self.folder_path, info_file)
-                    if not os.path.exists(info_file_path):
-                        raise FileNotFoundError(f"找不到文件: {info_file_path}")            
                     self.indo_df = pd.read_csv(info_file_path, sep='\t')  # 使用 pandas 读取 TSV 文件
                     # 假设：base.ui 中有一个 QTableView，名为 tableView
                     model = PandasModel(self.indo_df)  # 创建 Pandas 数据模型
@@ -422,7 +427,7 @@ class MainWindow(QMainWindow):
                     self.append_message(f"[Kilosort] Aready exists kilosort_def_5block_97")
             else: pass
         except Exception as e:
-            QMessageBox.critical(self, "错误", f"发生错误: {str(e)}")
+            QMessageBox.critical(self, "错误", f"Browser发生错误: {str(e)}")
 
     def generate_contrast(self):
         try:
