@@ -9,7 +9,7 @@ CALL "%CONDA_BASE%\Scripts\activate.bat" "%CONDA_BASE%"
 CALL conda activate fob_kilosort
 
 :: 运行 Python 脚本
-python F:\#Gong\Lab\FOBCheck\run_interface.py 
+python %FOBSC_PATH%\interface.py 
 
 :: 保持窗口打开以查看错误信息
 :: pause

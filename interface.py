@@ -8,7 +8,7 @@ import matlab.engine
 import h5py
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
-from PyQt6.QtGui import QPixmap
+from PyQt6.QtGui import QPixmap, QDesktopServices, QAction
 from PyQt6 import uic, QtCore, QtWidgets
 from PyQt6.QtWidgets import QGraphicsScene
 from PyQt6.QtWidgets import QApplication, QMainWindow, QFileDialog, QMessageBox, QListWidget, QTableView, QTextBrowser
@@ -321,6 +321,29 @@ class MainWindow(QMainWindow):
         self.kilosort_button = self.findChild(QtWidgets.QPushButton, 'pushButton_kilosort')
         self.kilosort_button.clicked.connect(self.run_kilosort_gui)
 
+        support_menu = self.findChild(QtWidgets.QMenu, 'menu_support')
+        if support_menu:
+            # Find and connect the Help action
+            help_action = self.findChild(QAction, 'actionhelp')
+            if help_action:
+                help_action.triggered.connect(self.open_help_pdf)
+
+            # Find and connect the Feedback action
+            feedback_action = self.findChild(QAction, 'actionfeedback')
+            if feedback_action:
+                feedback_action.triggered.connect(self.open_feedback_page)
+
+    def open_help_pdf(self):
+        pdf_path = os.path.join(self.home, 'FOBSC_document.pdf')  # Replace with the actual path to your help PDF
+        if os.path.exists(pdf_path):
+            os.startfile(pdf_path)
+        else:
+            QMessageBox.critical(self, 'Error', 'Help document not found.')
+
+    def open_feedback_page(self):
+        feedback_url = 'https://kdocs.cn/l/cctKe5YpjAaP'  # Replace with the actual feedback URL
+        QDesktopServices.openUrl(QtCore.QUrl(feedback_url))
+
     def browse_check_load_folder(self):
         try:
             # 使用文件对话框选择文件夹
@@ -406,16 +429,18 @@ class MainWindow(QMainWindow):
             # 获取A和B中的元素
             a_items = [self.boxAListWidget.item(i).text() for i in range(self.boxAListWidget.count())]
             b_items = [self.boxBListWidget.item(i).text() for i in range(self.boxBListWidget.count())]
-
-            # 生成对比字典条目
-            contrast_key = f"Contrast {self.contrastListWidget.count() + 1}"
-            contrast_value = (tuple(a_items), tuple(b_items))
-            
-            # 添加到对比列表
-            self.contrastListWidget.addItem(contrast_key)
-            self.contrastListWidget.item(self.contrastListWidget.count() - 1).setData(QtCore.Qt.ItemDataRole.UserRole, contrast_value)
+            if (len(a_items) > 0) and (len(b_items) > 0):
+                # 生成对比字典条目
+                contrast_key = f"Contrast {self.contrastListWidget.count() + 1}"
+                contrast_value = (tuple(a_items), tuple(b_items))
+                
+                # 添加到对比列表
+                self.contrastListWidget.addItem(contrast_key)
+                self.contrastListWidget.item(self.contrastListWidget.count() - 1).setData(QtCore.Qt.ItemDataRole.UserRole, contrast_value)
+            else:
+                QMessageBox.critical(self, "错误", f"Generate contrast 发生错误: contrast 需要 categories")
         except Exception as e:
-            QMessageBox.critical(self, "错误", f"发生错误: {str(e)}")
+            QMessageBox.critical(self, "错误", f"Generate contrast 发生错误: {str(e)}")
 
     def display_contrast(self, item):
         try:
@@ -513,7 +538,7 @@ class MainWindow(QMainWindow):
             parameters = (dialog.pre_onset.value(), dialog.post_onset.value(), dialog.psth_window_size.value())
 
             # 启动预处理线程
-            if self.matlab_engine is not None:
+            if (self.matlab_engine is not None) and (self.folder_path is not None):
                 self.matlab_engine.cd(self.folder_path)
                 self.matlab_engine.addpath(self.home)
                 utils_dir = os.path.join(self.home, 'util')
@@ -528,7 +553,10 @@ class MainWindow(QMainWindow):
                 self.preprocessing_thread.start()
                     
             else:
-                QMessageBox.warning(self, "Warning", f"稍后再试: 等待主进程激活 Matlab")
+                if self.matlab_engine is None:
+                    QMessageBox.warning(self, "Warning", f"Start processing Warning: 等待主进程激活 Matlab")
+                if self.folder_path is None:
+                    QMessageBox.warning(self, "Warning", f"Start processing Warning: 等待选择数据文件夹")
 
     def on_preprocess_finished(self, main_data):
         if len(main_data) > 0 :
@@ -655,7 +683,7 @@ class MainWindow(QMainWindow):
 
             if (len(contrast_value[0]) > 0)  and (len(contrast_value[1]) > 0):
                 a_items, b_items = contrast_value
-                print(a_items, b_items)
+                # print(a_items, b_items)
             fob_array = self.indo_df['FOB'].values
             a_indices, b_indices = [], []
             for a_cate in a_items:

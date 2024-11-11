@@ -643,8 +643,26 @@
      <height>23</height>
     </rect>
    </property>
+   <widget class="QMenu" name="menu_support">
+    <property name="title">
+     <string>支持</string>
+    </property>
+    <addaction name="actionhelp"/>
+    <addaction name="actionfeedback"/>
+   </widget>
+   <addaction name="menu_support"/>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
+  <action name="actionhelp">
+   <property name="text">
+    <string>help</string>
+   </property>
+  </action>
+  <action name="actionfeedback">
+   <property name="text">
+    <string>feedback</string>
+   </property>
+  </action>
  </widget>
  <resources/>
  <connections/>
