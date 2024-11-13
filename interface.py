@@ -571,7 +571,7 @@ class MainWindow(QMainWindow):
                             self.post_onset = np.squeeze(f["global_params"]['post_onset'][:])
                             self.psth_range = np.squeeze(f["global_params"]['PsthRange'][:])
                             self.stimtsv_path = ''.join([chr(int(num)) for num in np.squeeze(f["global_params"]['m_strImageListUsed'][()])]).replace('Z:', 'Y:')
-                            self.stim_path = '/'.join(self.stimtsv_path.split('\\')[0:-1]).replace('Z:', 'Y:') # TODO: delete replace
+                            self.stim_path = '/'.join(self.stimtsv_path.split('\\')[0:-1])
                         self.append_message(f"[Data] Pre onset {self.pre_onset}; Post onset {self.post_onset}")
                         self.append_message(f"[Stim] Stim path {self.stim_path}")
                         if len(self.psth_range) != (self.pre_onset + self.post_onset):
@@ -754,7 +754,7 @@ class MainWindow(QMainWindow):
                     self.post_onset = np.squeeze(f["global_params"]['post_onset'][:])
                     self.psth_range = np.squeeze(f["global_params"]['PsthRange'][:])
                     stimtsv_path = ''.join([chr(int(num)) for num in np.squeeze(f["global_params"]['m_strImageListUsed'][()])])
-                    self.stim_path = '/'.join(stimtsv_path.split('\\')[0:-1]).replace('Z:', 'Y:') # TODO: delete replace
+                    self.stim_path = '/'.join(stimtsv_path.split('\\')[0:-1])
                 self.append_message(f"[Data] Pre onset {self.pre_onset}; Post onset {self.post_onset}")
                 self.append_message(f"[Stim] Stim path {self.stim_path}")
                 if len(self.psth_range) != (self.pre_onset + self.post_onset):
