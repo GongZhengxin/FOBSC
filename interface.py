@@ -187,6 +187,9 @@ class ProcessThread(QtCore.QThread):
         except Exception as e:
             self.logger.error(f"[{self.command}] 进程出错: {str(e)}")
 
+    def stop(self):
+        self._running = False
+        
 class LogWatcherThread(QThread):
     log_updated = pyqtSignal(str)
 
@@ -425,7 +428,7 @@ class MainWindow(QMainWindow):
         
         # 文件检查和 Kilosort 相关属性
         self.folder_path = None
-
+        self.indo_file = None
         self.main_data = np.array([])  # Will store the resp_matrix for reuse
         
         self.FIGS_button = self.findChild(QtWidgets.QPushButton, 'pushButton_figs')
@@ -536,7 +539,7 @@ class MainWindow(QMainWindow):
                     else:
                         # 假设：info.tsv 文件中包含需要显示的数据
                         info_file = [f for f in os.listdir(self.folder_path) if '_info.tsv' in f]
-                    
+                        null_tsv = False
                     if not null_tsv:
                         if len(info_file) == 1: info_file = info_file[0]
                         else: QMessageBox.warning(self, "文件冗余", f"Info File 找到了 {len(info_file)} 个： {info_file}")
@@ -814,21 +817,11 @@ class MainWindow(QMainWindow):
                 if len(self.psth_range) != (self.pre_onset + self.post_onset):
                     QMessageBox.critical(self, "错误", f"发生错误: GoodUnit global parameter 中 psthrange 与 preonset & postonset 不匹配")
                 
-                self.image_loader = ImageLoaderThread(self.stim_path, self.stimtsv_path, self.indo_df, self.selstim)
-                self.image_loader.image_loaded.connect(self.on_imge_loaded)
-                self.image_loader.progress.connect(self.append_message)
-                self.image_loader.start()
-                # if not self.select_stimname:
-                #     stimnames = pd.read_csv(stimtsv_path, sep='\t')['FileName'].values
-                #     unique_elements = np.unique(self.indo_df["FOB"].values)
-                #     for iele, sel in enumerate(self.selstim):
-                #         self.select_stimname[unique_elements[iele]] = stimnames[sel]
-                #     self.append_message(f"[Stim] Collect selected imagenames {self.select_stimname} ")
-                # # load imgs
-                # self.select_stim = {}
-                # for element, imgname in self.select_stimname.items():
-                #     cur_img = Image.open(os.path.join(self.stim_path, imgname))
-                #     self.select_stim[element] = cur_img
+                if not not self.indo_df: # 如果前面读取了tsv, 意味着是一个fob实验，就进行imageloader
+                    self.image_loader = ImageLoaderThread(self.stim_path, self.stimtsv_path, self.indo_df, self.selstim)
+                    self.image_loader.image_loaded.connect(self.on_imge_loaded)
+                    self.image_loader.progress.connect(self.append_message)
+                    self.image_loader.start()
             else:
                 self.append_message(f"[Data] Fail to load meta data")
                 pass # TODO : operatiosn needed if more than 1 file 
