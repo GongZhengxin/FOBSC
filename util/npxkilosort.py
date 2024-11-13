@@ -16,7 +16,7 @@ logger.setLevel(logging.INFO)
 
 # 设置日志处理器和格式
 handler = logging.StreamHandler()  # 输出到控制台
-formatter = logging.Formatter('[Kilosort] %(asctime)s - %(levelname)s - %(message)s')
+formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 handler.setFormatter(formatter)
 logger.addHandler(handler)
 

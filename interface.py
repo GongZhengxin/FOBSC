@@ -148,7 +148,7 @@ class ProcessThread(QtCore.QThread):
         self.logger = logging.getLogger("ProcessThreadLogger")
         self.logger.setLevel(logging.INFO)  # You can adjust the log level as needed
         handler = LogHandler(self.output_signal)
-        handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+        handler.setFormatter(logging.Formatter('[Kilosort] %(message)s'))
         self.logger.addHandler(handler)
         self.logger.propagate = False  # Prevent double logging
 
