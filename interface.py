@@ -18,6 +18,18 @@ from scipy.stats import zscore
 from scipy.stats import linregress
 import scipy.stats as stats
 from PIL import Image, ImageOps
+import logging
+
+class LogHandler(logging.Handler):
+    """Custom logging handler to send logs to a PyQt signal."""
+    def __init__(self, output_signal):
+        super().__init__()
+        self.output_signal = output_signal
+
+    def emit(self, record):
+        # Format the log message and emit it through the signal
+        log_entry = self.format(record)
+        self.output_signal.emit(log_entry)
 
 # 更新 PreprocessingThread 以接受 MATLAB 引擎实例
 class PreprocessingThread(QThread):
@@ -123,18 +135,28 @@ class MatlabEngineThread(QThread):
         except Exception as e:
             self.started_signal.emit(f"[MATLAB] 启动引擎失败: {str(e)}")
 
-class ProcessThread(QThread):
-    output_signal = pyqtSignal(str)  # 用于传递进程输出的信号
+class ProcessThread(QtCore.QThread):
+    output_signal = QtCore.pyqtSignal(str)
 
-    def __init__(self, command, procname="Process", working_directory=None, parent=None):
+    def __init__(self, command, working_directory, parent=None):
         super().__init__(parent)
         self.command = command
         self.working_directory = working_directory
         self._running = True
-        self.procname = procname
+
+        # Set up logging to use our custom handler
+        self.logger = logging.getLogger("ProcessThreadLogger")
+        self.logger.setLevel(logging.INFO)  # You can adjust the log level as needed
+        handler = LogHandler(self.output_signal)
+        handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+        self.logger.addHandler(handler)
+        self.logger.propagate = False  # Prevent double logging
 
     def run(self):
         try:
+            # Log a start message
+            self.logger.info(f"[{self.command}] 进程启动...")
+
             # 启动外部进程
             process = subprocess.Popen(
                 self.command,
@@ -145,27 +167,24 @@ class ProcessThread(QThread):
                 bufsize=1  # 行缓冲模式
             )
 
-            # 逐行读取进程输出
+            # 逐行读取进程输出并实时记录
             while self._running:
                 output = process.stdout.readline()
                 if output:
-                    self.output_signal.emit(output.strip())
+                    self.logger.info(output.strip())  # Use logger to handle the output
                 if process.poll() is not None:
                     break
 
             # 确保读取所有剩余输出
             remaining_output = process.stdout.read()
             if remaining_output:
-                self.output_signal.emit(remaining_output.strip())
+                self.logger.info(remaining_output.strip())
 
             # 等待进程结束
             process.wait()
-            self.output_signal.emit(f"[{self.procname}] 进程完成。")
+            self.logger.info(f"[{self.command}] 进程完成。")
         except Exception as e:
-            self.output_signal.emit(f"[{self.procname}] 进程出错: {str(e)}")
-
-    def stop(self):
-        self._running = False
+            self.logger.error(f"[{self.command}] 进程出错: {str(e)}")
 
 class LogWatcherThread(QThread):
     log_updated = pyqtSignal(str)
@@ -238,6 +257,7 @@ class FobscparamDialog(QtWidgets.QDialog):
             self.linethreshold_spinbox.setValue(0.2)  # Default threshold
             self.linewidth_spinbox.setValue(1.0)  # Default width
             self.spinBox_markersize.setValue(40)  # Default ms
+
         else:
             # Set default values for firing window
             self.lower_bound_edit.setText(str(self.paramdict["firing_window"]["lower_bound"]))  # Default lower bound
@@ -260,6 +280,8 @@ class FobscparamDialog(QtWidgets.QDialog):
             self.linestyle_combo.setCurrentText(self.paramdict["line_scatter"]["linestyle"])
             self.cum_checkbox.setChecked(self.paramdict["line_scatter"]["cumplot"])
             self.prb_checkbox.setChecked(self.paramdict["line_scatter"]["prbplot"])
+            self.stepsize_spinbox.setValue(self.paramdict["line_scatter"]["stepsize"])
+            
         # Set checkbox exclusivity between by_depth and by_dprime
         self.by_depth_checkbox.toggled.connect(self.toggle_checkbox)
         self.by_dprime_checkbox.toggled.connect(self.toggle_checkbox)
@@ -303,7 +325,8 @@ class FobscparamDialog(QtWidgets.QDialog):
                 "linethreshold": self.linethreshold_spinbox.value(),
                 "linewidth": self.linewidth_spinbox.value(),
                 "cumplot" : self.cum_checkbox.isChecked(),
-                "prbplot" : self.prb_checkbox.isChecked()
+                "prbplot" : self.prb_checkbox.isChecked(),
+                "stepsize" : self.stepsize_spinbox.value()
             }
         }
         return param_dict
@@ -449,7 +472,8 @@ class MainWindow(QMainWindow):
                 "linethreshold": 0.2,
                 "linewidth": 1.5,
                 "cumplot" : False,
-                "prbplot" : True
+                "prbplot" : True,
+                "stepsize": 0.05
             }
         }
 
@@ -917,12 +941,25 @@ class MainWindow(QMainWindow):
         r = lambda: random.randint(0, 255)
         return f'#{r():02x}{r():02x}{r():02x}'
     
+    def get_random_cmap(self):
+        from matplotlib import pyplot as plt
+        all_colormaps = plt.colormaps()
+        # 筛选出连续色谱：排除常用的离散色谱
+        sequential_colormaps = [cm for cm in all_colormaps if not cm.endswith("_r") and cm not in [
+            'tab10', 'tab20', 'tab20b', 'tab20c', 'Pastel1', 'Pastel2', 'Paired', 'Accent', 
+            'Dark2', 'Set1', 'Set2', 'Set3', 'flag', 'prism', 'hsv', 'coolwarm', 'bwr'
+        ]]
+        p = np.random.rand(1)
+        if p < 0.7: return "RdBu_r"
+        else: return np.random.choice(sequential_colormaps)
+
     def plot_mainfigure(self, fire_mat, dprime, image_array, prefer='Pref', title='Contrast'):
         try:
             # Plot the dprime values and display in graphicsView
             from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
             from matplotlib.figure import Figure
             from matplotlib import pyplot as plt
+            import matplotlib.ticker as ticker
 
             # 创建一个1行2列的图
             # 目标像素大小
@@ -941,7 +978,8 @@ class MainWindow(QMainWindow):
                 ax1.set_ylabel(f"Neurons (sorted by {prefer} d')")
             draw_data = zscore(draw_data, axis=0)
             vmin, vmax = self.fobscparams['redplot']['vmin'], self.fobscparams['redplot']['vmax'] 
-            im = ax1.imshow(draw_data.transpose(), cmap='RdBu_r', vmin=vmin, vmax=vmax, aspect='auto')
+            cmap = self.get_random_cmap()
+            im = ax1.imshow(draw_data.transpose(), cmap=cmap, vmin=vmin, vmax=vmax, aspect='auto')
             ax1.set_title('RedPlot')
             ax1.set_xlabel('Pictures')
             pos = ax1.get_position()
@@ -949,7 +987,8 @@ class MainWindow(QMainWindow):
             cb = plt.colorbar(im, cax=cax)
             cb.ax.yaxis.set_ticks_position('right')
             cb.ax.yaxis.set_ticks([draw_data.min(), 0, draw_data.max()])
-            cb.ax.tick_params(direction='out', labelsize=9)
+            cb.ax.yaxis.set_major_formatter(ticker.FormatStrFormatter('%.1g'))
+            cb.ax.tick_params(direction='out', labelsize=7)
             for x in self.stim_start_end_indices:
                 ax1.axvline(x=x, lw=0.5, ls="--", color='k')
             # 第2个子图：plot
@@ -963,14 +1002,16 @@ class MainWindow(QMainWindow):
                 # 计算数据的最小值和最大值
                 min_val = np.min(dprime)
                 max_val = np.max(dprime)
-                step = 0.05
+                step = param_LSC['stepsize']
                 # 生成区间的边界（包括右边界）
                 bins = np.arange(min_val, max_val + step, step)
                 # 计算每个区间的计数
                 counts, _ = np.histogram(dprime, bins=bins)
                 # 计算每个区间的中值
                 mid_points = (bins[:-1] + bins[1:]) / 2
-                ax2.plot(mid_points, counts, lw=lwidth, ls=lstyle, color=self.get_random_color())
+                # ax2.plot(mid_points, counts, lw=lwidth, ls=lstyle, color=self.get_random_color())
+                ax2_color = self.get_random_color()
+                ax2.bar(mid_points, counts, width=step, align='center', lw=lwidth, ls=lstyle, color=ax2_color, edgecolor=ax2_color)
             else:
                 ax2.plot(np.sort(dprime), np.arange(len(dprime)), lw=lwidth, ls=lstyle, color=self.get_random_color())
             ax2.axvline(x=-lthres, lw=1, color='k')
@@ -989,18 +1030,7 @@ class MainWindow(QMainWindow):
             if param_LSC['linfit']:
                 slope, intercept = np.polyfit(y, x, 1)
                 x_fit = slope * y + intercept
-                # # 线性回归拟合
-                # slope, intercept, r_value, _, std_err = linregress(y, x)
-                # # 计算置信区间
-                # confidence = 0.95
-                # t_value = stats.t.ppf((1 + confidence) / 2, df=len(x) - 2)  # t 分布的临界值
-                # slope_ci = t_value * std_err  # 置信区间的宽度
-                # x_fit = slope * y + intercept
                 ax3.plot(x_fit, y, color=ax3color, ls=lstyle, lw=lwidth, zorder=5)
-                # # 绘制置信区间
-                # x_upper = (slope + slope_ci) * y + intercept
-                # x_lower = (slope - slope_ci) * y + intercept
-                # ax3.fill_betweenx(y, x_lower, x_upper, color='gray', alpha=0.2)
             ax3.axvline(x=lthres, ls='--', color='k', alpha=0.7)
             ax3.set_title("d' ~ Depth")
             ax3.set_xlabel(f"{prefer} d'")

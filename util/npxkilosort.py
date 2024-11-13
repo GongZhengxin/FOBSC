@@ -4,35 +4,46 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 import sys
+import logging
 
 # 检查传入的参数数量是否符合预期
 if len(sys.argv) != 2:
     print("Usage: python npxkilosort.py <folder> ")
     sys.exit(1)
 
+logger = logging.getLogger("ExampleClassLogger")
+logger.setLevel(logging.INFO)
+
+# 设置日志处理器和格式
+handler = logging.StreamHandler()  # 输出到控制台
+formatter = logging.Formatter('[Kilosort] %(asctime)s - %(levelname)s - %(message)s')
+handler.setFormatter(formatter)
+logger.addHandler(handler)
+
 spikeglx_folder = sys.argv[1]
-print(spikeglx_folder)
+logger.info(spikeglx_folder)
+
 stream_names, stream_ids = si.get_neo_streams('spikeglx',spikeglx_folder)
-print(stream_names)
+logger.info(stream_names)
 raw_rec = si.read_spikeglx(spikeglx_folder, stream_name='imec0.ap', load_sync_channel=False)
 raw_rec.get_probe().to_dataframe()
 
-print('Preprocess Real Data, High Pass')
+logger.info('Preprocess Real Data, High Pass')
 rec3 = si.highpass_filter(recording=raw_rec, freq_min=300.)
 bad_channel_ids, channel_labels = si.detect_bad_channels(rec3)
 
 rec3 = rec3.remove_channels(bad_channel_ids)
-print('Preprocess Real Data, bad_channel_ids', bad_channel_ids)
+logger.info('Preprocess Real Data, bad_channel_ids', bad_channel_ids)
 
-print('Preprocess Real Data, phase shift')
+logger.info('Preprocess Real Data, phase shift')
 rec3 = si.phase_shift(rec3)
 
-print('Preprocess Real Data, CAR')
+logger.info('Preprocess Real Data, CAR')
 rec3 = si.common_reference(rec3, operator="median", reference="global")
 
 rec = rec3
 
-print('Saving to kilosort format for later use')
+logger.info('Saving to kilosort format for later use')
 from kilosort import io
 dtype = np.int16
 filename, N, c, s, fs, probe_path = io.spikeinterface_to_binary(rec, './KS_TEMP2/', data_name='preprocessed.bin', dtype=dtype,chunksize=60000, export_probe=True, probe_name='probe.prb')
@@ -40,7 +51,7 @@ from kilosort import run_kilosort
 probe = io.load_probe(probe_path)
 
 settings = {'fs': fs, 'n_chan_bin': c,'nblocks':5,'Th_learned':7,'Th_universal':9}
-print('Run Kilosort')
+logger.info('Run Kilosort')
 ops, st, clu, tF, Wall, similar_templates, is_ref, est_contam_rate, kept_spikes = run_kilosort(settings=settings, probe=probe, filename=filename, results_dir='kilosort_def_5block_97')
 
 from pathlib import Path
@@ -124,3 +135,4 @@ import os
 if not os.path.exists(os.path.join(spikeglx_folder, 'processed')):
     os.makedirs(os.path.join(spikeglx_folder, 'processed'), exist_ok=True)
 fig.savefig(os.path.join(spikeglx_folder, 'Kilosort.png'), dpi=300, bbox_inches='tight')
+logger.info(f"Saved check plot in {os.path.join(spikeglx_folder, 'Kilosort.png')}")
