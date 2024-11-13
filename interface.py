@@ -189,7 +189,7 @@ class ProcessThread(QtCore.QThread):
 
     def stop(self):
         self._running = False
-        
+
 class LogWatcherThread(QThread):
     log_updated = pyqtSignal(str)
 
@@ -428,7 +428,7 @@ class MainWindow(QMainWindow):
         
         # 文件检查和 Kilosort 相关属性
         self.folder_path = None
-        self.indo_file = None
+        self.indo_df = None
         self.main_data = np.array([])  # Will store the resp_matrix for reuse
         
         self.FIGS_button = self.findChild(QtWidgets.QPushButton, 'pushButton_figs')
