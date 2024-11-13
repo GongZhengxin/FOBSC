@@ -138,12 +138,12 @@ class MatlabEngineThread(QThread):
 class ProcessThread(QtCore.QThread):
     output_signal = QtCore.pyqtSignal(str)
 
-    def __init__(self, command, working_directory, parent=None):
+    def __init__(self, command, working_directory, procname='Kilosort', parent=None):
         super().__init__(parent)
         self.command = command
         self.working_directory = working_directory
         self._running = True
-
+        self.procname = procname
         # Set up logging to use our custom handler
         self.logger = logging.getLogger("ProcessThreadLogger")
         self.logger.setLevel(logging.INFO)  # You can adjust the log level as needed
@@ -155,7 +155,7 @@ class ProcessThread(QtCore.QThread):
     def run(self):
         try:
             # Log a start message
-            self.logger.info(f"[{self.command}] 进程启动...")
+            self.logger.info(f"[{self.procname}] 进程启动...")
 
             # 启动外部进程
             process = subprocess.Popen(
