@@ -20,10 +20,18 @@ ml_name = ML_FILE(1).name;
 [exp_day, exp_subject] = parsing_ML_name(ml_name);
 
 % Load Grid
-textData = fileread('GRID.txt');
-lines = strsplit(textData, '\n');
-Grid = lines{1}(1:end-1);
-Notes = lines{2};
+if exist('GRID.txt', 'file') == 2
+    textData = fileread('GRID.txt');
+    lines = strsplit(textData, '\n');
+    Grid = lines{1}(1:end-1);
+    Notes = lines{2};
+else
+    Grid = '*Wait*To*Know\n';
+    Notes = "*Wait*To*Hear";
+    G_fileID = fopen('GRID.txt', 'w');
+    fprintf(G_fileID, [Grid, Notes]);
+    fclose(G_fileID);
+end
 trial_ML_name = fullfile('processed',sprintf('ML_%s.mat',ml_name(1:end-5)));
 file_exist = length(dir(trial_ML_name));
 if(file_exist)

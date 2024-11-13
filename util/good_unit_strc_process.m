@@ -133,14 +133,14 @@ for spike_num = 1:length(UnitStrc)
     [p,h,stats] = ranksum(highline(:),baseline(:),method="approximate");
     if(p<0.0001)
         
-        subplot(2,5,1)
-        wdata = UnitStrc(spike_num).waveform;
-        [a,b]=find(abs(wdata) == max(abs(wdata(:))));
-        useful_idx = find((wdata(1,:)~=0));
-        useful_idx = useful_idx(mod(useful_idx-b,2)==0);
-        hori_val = useful_idx-min(useful_idx);
-        plot(wdata(:,useful_idx)-hori_val/10,'k')
-        title(sprintf('Amp = %.02f uv\n', mean(UnitStrc(spike_num).amplitudes)))
+        % subplot(2,5,1)
+        % wdata = UnitStrc(spike_num).waveform;
+        % [a,b]=find(abs(wdata) == max(abs(wdata(:))));
+        % useful_idx = find((wdata(1,:)~=0));
+        % useful_idx = useful_idx(mod(useful_idx-b,2)==0);
+        % hori_val = useful_idx-min(useful_idx);
+        % plot(wdata(:,useful_idx)-hori_val/10,'k')
+        % title(sprintf('Amp = %.02f uv\n', mean(UnitStrc(spike_num).amplitudes)))
 
         subplot(2,5,[2,3])
         imagesc(1:img_size,-pre_onset:post_onset,response_matrix_img')
@@ -156,26 +156,26 @@ for spike_num = 1:length(UnitStrc)
         plot([high_line_time([1,end])],[ mean(highline(:)), mean(highline(:))],'k','LineWidth',2)
         ylim([min(mean(psth_raw))-1,max(mean(psth_raw))+1])
 
-        subplot(2,5,8);
-        plot(onset_t)
+        % subplot(2,5,8);
+        % plot(onset_t)
         sgtitle(sprintf('Visual Response Unit No.%d, KSlabel = %s', good_idx, UnitStrc(spike_num).kslabel))
 
-        subplot(2,5,[6]);
-        within_loc = find(spike_time>t1 &spike_time<t2);
-        isi = diff(spike_time(within_loc));
-        isi(isi>18)=18;
-        violate_rate = sum(isi<1.2)./length(isi);
-        hist([isi;-isi],40)
-        xlim([-15,15])
-        title(sprintf('ISI < 1.2 ms = %.02f percent', 100*violate_rate))
-
-        subplot(2,5,7);
-        hold off
-        plot(spike_rates); hold on
-        xline(t1/60000); xline(t2/60000)
+        % subplot(2,5,[6]);
+        % within_loc = find(spike_time>t1 &spike_time<t2);
+        % isi = diff(spike_time(within_loc));
+        % isi(isi>18)=18;
+        % violate_rate = sum(isi<1.2)./length(isi);
+        % hist([isi;-isi],40)
+        % xlim([-15,15])
+        % title(sprintf('ISI < 1.2 ms = %.02f percent', 100*violate_rate))
+        % 
+        % subplot(2,5,7);
+        % hold off
+        % plot(spike_rates); hold on
+        % xline(t1/60000); xline(t2/60000)
 
         drawnow
-        saveas(gcf,sprintf('processed/data_viewer/%03d.png', good_idx))
+        % saveas(gcf,sprintf('processed/data_viewer/%03d.png', good_idx))
 
         GoodUnitStrc(good_idx).waveform = UnitStrc(spike_num).waveform;
         GoodUnitStrc(good_idx).spiketime_ms = UnitStrc(spike_num).spiketime_ms;

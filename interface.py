@@ -14,7 +14,10 @@ from PyQt6.QtWidgets import QGraphicsScene
 from PyQt6.QtWidgets import QApplication, QMainWindow, QFileDialog, QMessageBox, QListWidget, QTableView, QTextBrowser
 from PyQt6.QtCore import QAbstractTableModel, Qt, QThread, pyqtSignal
 import pathlib
-
+from scipy.stats import zscore
+from scipy.stats import linregress
+import scipy.stats as stats
+from PIL import Image, ImageOps
 
 # 更新 PreprocessingThread 以接受 MATLAB 引擎实例
 class PreprocessingThread(QThread):
@@ -207,38 +210,131 @@ class LogWatcherThread(QThread):
         self._running = False
 
 class FobscparamDialog(QtWidgets.QDialog):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, param_dict=None):
         super().__init__(parent)
+        # Load the UI file
+        self.home = os.path.dirname(os.path.abspath(__file__))
+        ui_file = os.path.join(self.home, "plotparams.ui")
+        uic.loadUi(ui_file, self)
+        self.paramdict = param_dict
+        # Initialize UI components with default values and connect signals
         self.initUI()
 
     def initUI(self):
-        self.setWindowTitle('Set Firing Window')
+        if self.paramdict is None:
+            # Set default values for firing window
+            self.lower_bound_edit.setText("60")  # Default lower bound
+            self.upper_bound_edit.setText("220")  # Default upper bound
 
-        layout = QtWidgets.QVBoxLayout()
-        self.lower_bound_edit = QtWidgets.QLineEdit(self)
-        self.upper_bound_edit = QtWidgets.QLineEdit(self)
-        # Set default values for the firing window
-        self.lower_bound_edit.setText("60")  # Default lower bound value
-        self.upper_bound_edit.setText("220")  # Default upper bound value
+            # Set default values for redplot vmin and vmax
+            self.vmin_spinbox.setValue(-2.)  # Default vmin
+            self.vmax_spinbox.setValue(2.)  # Default vmax
 
-        layout.addWidget(QtWidgets.QLabel('Lower Bound (ms):'))
-        layout.addWidget(self.lower_bound_edit)
-        layout.addWidget(QtWidgets.QLabel('Upper Bound (ms):'))
-        layout.addWidget(self.upper_bound_edit)
+            # Set checkbox exclusivity between by_depth and by_dprime
+            self.by_depth_checkbox.setChecked(True)  # Default selection
+            self.by_dprime_checkbox.setChecked(False)
+            
+            # Set default values for line scatter plot parameters
+            self.linethreshold_spinbox.setValue(0.2)  # Default threshold
+            self.linewidth_spinbox.setValue(1.0)  # Default width
+            self.spinBox_markersize.setValue(40)  # Default ms
+        else:
+            # Set default values for firing window
+            self.lower_bound_edit.setText(str(self.paramdict["firing_window"]["lower_bound"]))  # Default lower bound
+            self.upper_bound_edit.setText(str(self.paramdict["firing_window"]["upper_bound"]))  # Default upper bound
 
-        button_box = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.StandardButton.Ok | QtWidgets.QDialogButtonBox.StandardButton.Cancel)
-        button_box.accepted.connect(self.accept)
-        button_box.rejected.connect(self.reject)
+            # Set default values for redplot vmin and vmax
+            self.vmin_spinbox.setValue(self.paramdict["redplot"]["vmin"])  # Default vmin
+            self.vmax_spinbox.setValue(self.paramdict["redplot"]["vmax"])  # Default vmax
 
-        layout.addWidget(button_box)
-        self.setLayout(layout)
+            # Set checkbox exclusivity between by_depth and by_dprime
+            self.by_depth_checkbox.setChecked(self.paramdict["redplot"]["by_depth"])  # Default selection
+            self.by_dprime_checkbox.setChecked(self.paramdict["redplot"]["by_dprime"])
+
+            # Set default values for line scatter plot parameters
+            self.checkBox_linfit.setChecked(self.paramdict["line_scatter"]["linfit"])  
+            self.linethreshold_spinbox.setValue(self.paramdict["line_scatter"]["linethreshold"])  # Default threshold
+            self.linewidth_spinbox.setValue(self.paramdict["line_scatter"]["linewidth"])  # Default width
+            self.spinBox_markersize.setValue(self.paramdict["line_scatter"]["markersize"])  # Default ms
+            self.marker_combo.setCurrentText(self.paramdict["line_scatter"]["marker"])
+            self.linestyle_combo.setCurrentText(self.paramdict["line_scatter"]["linestyle"])
+            self.cum_checkbox.setChecked(self.paramdict["line_scatter"]["cumplot"])
+            self.prb_checkbox.setChecked(self.paramdict["line_scatter"]["prbplot"])
+        # Set checkbox exclusivity between by_depth and by_dprime
+        self.by_depth_checkbox.toggled.connect(self.toggle_checkbox)
+        self.by_dprime_checkbox.toggled.connect(self.toggle_checkbox)
+        self.cum_checkbox.toggled.connect(self.toggle_checkbox2)
+        self.prb_checkbox.toggled.connect(self.toggle_checkbox2)
+        # OK and Cancel button connections
+        self.buttonBox.accepted.connect(self.accept)
+        self.buttonBox.rejected.connect(self.reject)
+
+    def toggle_checkbox(self):
+        # Toggle checkboxes to ensure only one is selected
+        if self.sender() == self.by_depth_checkbox:
+            self.by_dprime_checkbox.setChecked(not self.by_depth_checkbox.isChecked())
+        else:
+            self.by_depth_checkbox.setChecked(not self.by_dprime_checkbox.isChecked())
+    def toggle_checkbox2(self):
+        # Toggle checkboxes to ensure only one is selected
+        if self.sender() == self.cum_checkbox:
+            self.prb_checkbox.setChecked(not self.cum_checkbox.isChecked())
+        else:
+            self.cum_checkbox.setChecked(not self.prb_checkbox.isChecked())
 
     def get_values(self):
-        lower_bound = int(self.lower_bound_edit.text())
-        upper_bound = int(self.upper_bound_edit.text())
-        self.lower_bound_edit.setText(f"{lower_bound}")  # Default lower bound value
-        self.upper_bound_edit.setText(f"{upper_bound}")
-        return lower_bound, upper_bound
+        # Collecting values into a dictionary
+        param_dict = {
+            "firing_window": {
+                "lower_bound": int(self.lower_bound_edit.text()),
+                "upper_bound": int(self.upper_bound_edit.text())
+            },
+            "redplot": {
+                "vmin": self.vmin_spinbox.value(),
+                "vmax": self.vmax_spinbox.value(),
+                "by_depth": self.by_depth_checkbox.isChecked(),
+                "by_dprime": self.by_dprime_checkbox.isChecked()
+            },
+            "line_scatter": {
+                "linfit": self.checkBox_linfit.isChecked(),
+                "marker": self.marker_combo.currentText(),
+                "markersize": self.spinBox_markersize.value(),
+                "linestyle": self.linestyle_combo.currentText(),
+                "linethreshold": self.linethreshold_spinbox.value(),
+                "linewidth": self.linewidth_spinbox.value(),
+                "cumplot" : self.cum_checkbox.isChecked(),
+                "prbplot" : self.prb_checkbox.isChecked()
+            }
+        }
+        return param_dict
+
+class ImageLoaderThread(QThread):
+    # 定义一个信号，用于通知主线程加载完成
+    image_loaded = pyqtSignal(dict)
+    progress = pyqtSignal(str)
+    def __init__(self, stim_path, stimtsv_path, indo_df, selstim):
+        super().__init__()
+        self.stim_path = stim_path
+        self.stimtsv_path = stimtsv_path
+        self.indo_df = indo_df
+        self.selstim = selstim
+
+    def run(self):
+        # 在子线程中读取图像
+        # if not not self.select_stimname: # 如果 stimname 非空
+        stimnames = pd.read_csv(self.stimtsv_path, sep='\t')['FileName'].values # TODO: delete replace
+        unique_elements = np.unique(self.indo_df["FOB"].values)
+        self.select_stimname = {}
+        for iele, sel in enumerate(self.selstim):
+            self.select_stimname[unique_elements[iele]] = stimnames[sel]
+        self.progress.emit(f"[Stim] Collect selected imagenames {self.select_stimname} ")
+        # load imgs
+        select_stim = {}
+        for element, imgname in self.select_stimname.items():
+            cur_img = Image.open(os.path.join(self.stim_path, imgname)).resize((150,150))
+            select_stim[element] = cur_img
+
+        self.image_loaded.emit(select_stim)  # 将图像数组传递给主线程
 
 # 假设：你已经创建了一个名为 base.ui 的文件，通过Qt Designer设计了基本界面。
 class MainWindow(QMainWindow):
@@ -247,7 +343,7 @@ class MainWindow(QMainWindow):
         self.home = os.path.dirname(os.path.abspath(__file__))
         ui_file = os.path.join(self.home, 'Base.ui') 
         uic.loadUi(ui_file, self)  # 动态加载 UI 文件
-
+        self.fobscparams = self.default_fobscparam()
         # 假设：base.ui中有 browseButton, checkFilesButton, displayButton, folderLabel, tableView, listWidget_FOB 等 UI 元素。
         # 绑定按钮点击事件
         self.folderLabel = self.findChild(QtWidgets.QLabel, 'folderLabel')
@@ -333,6 +429,30 @@ class MainWindow(QMainWindow):
             if feedback_action:
                 feedback_action.triggered.connect(self.open_feedback_page)
 
+    def default_fobscparam(self):
+        return {
+            "firing_window": {
+                "lower_bound": int(60),
+                "upper_bound": int(220)
+            },
+            "redplot": {
+                "vmin": -2.,
+                "vmax": 2.,
+                "by_depth": True,
+                "by_dprime": False
+            },
+            "line_scatter": {
+                "linfit": False,
+                "marker": 'o',
+                "markersize": int(40),
+                "linestyle": "-",
+                "linethreshold": 0.2,
+                "linewidth": 1.5,
+                "cumplot" : False,
+                "prbplot" : True
+            }
+        }
+
     def open_help_pdf(self):
         pdf_path = os.path.join(self.home, 'FOBSC_document.pdf')  # Replace with the actual path to your help PDF
         if os.path.exists(pdf_path):
@@ -391,6 +511,19 @@ class MainWindow(QMainWindow):
                     self.listWidget_FOB.clear()
                     self.listWidget_FOB.addItems(unique_elements)  # 将 unique 元素添加到 QListWidget 中
                     self.append_message(f"[LOAD] {self.folder_path} !")
+                    stim_indx, selstim = [], []
+                    for element in unique_elements:
+                        stim_indx.append(np.where(self.indo_df['FOB'].values == element)[0].min())
+                        stim_indx.append(np.where(self.indo_df['FOB'].values == element)[0].max())
+                        selstim.append(np.where(self.indo_df['FOB'].values == element)[0].min())
+                    self.stim_start_end_indices = stim_indx
+                    self.selstim = selstim
+                    # get selected stimulus file name
+                    self.select_stimname = {}
+                    if "FileName" in self.indo_df.keys():
+                        for iele, sel in enumerate(selstim):
+                            self.select_stimname[unique_elements[iele]] = self.indo_df["FileName"].values[sel]
+                        self.append_message(f"[Stim] Collect selected imagenames {self.select_stimname} ")
                 processde_dir = os.path.join(self.folder_path, "processed")
                 if os.path.exists(processde_dir):
                     Respfile = [_ for _ in os.listdir(processde_dir) if ('RespMat_' in _) and ('.npy' in _)]
@@ -413,9 +546,17 @@ class MainWindow(QMainWindow):
                             self.pre_onset = np.squeeze(f["global_params"]['pre_onset'][:])
                             self.post_onset = np.squeeze(f["global_params"]['post_onset'][:])
                             self.psth_range = np.squeeze(f["global_params"]['PsthRange'][:])
+                            self.stimtsv_path = ''.join([chr(int(num)) for num in np.squeeze(f["global_params"]['m_strImageListUsed'][()])]).replace('Z:', 'Y:')
+                            self.stim_path = '/'.join(self.stimtsv_path.split('\\')[0:-1]).replace('Z:', 'Y:') # TODO: delete replace
                         self.append_message(f"[Data] Pre onset {self.pre_onset}; Post onset {self.post_onset}")
+                        self.append_message(f"[Stim] Stim path {self.stim_path}")
                         if len(self.psth_range) != (self.pre_onset + self.post_onset):
                             QMessageBox.critical(self, "错误", f"发生错误: GoodUnit global parameter 中 psthrange 与 preonset & postonset 不匹配")
+                        if not not self.select_stimname: # 如果 stimname 非空
+                            self.image_loader = ImageLoaderThread(self.stim_path, self.stimtsv_path, self.indo_df, self.selstim)
+                            self.image_loader.image_loaded.connect(self.on_imge_loaded)
+                            self.image_loader.progress.connect(self.append_message)
+                            self.image_loader.start()
                     else:
                         self.append_message(f"[Data] Fail to load meta data")
                         pass # TODO : operatiosn needed if more than 1 file 
@@ -436,7 +577,12 @@ class MainWindow(QMainWindow):
             b_items = [self.boxBListWidget.item(i).text() for i in range(self.boxBListWidget.count())]
             if (len(a_items) > 0) and (len(b_items) > 0):
                 # 生成对比字典条目
-                contrast_key = f"Contrast {self.contrastListWidget.count() + 1}"
+                print(a_items, type(a_items))
+                if len(a_items) > 2: a_keys = '&'.join(a_items[0:2]) + '...'
+                else: a_keys = '&'.join(a_items[0:2])
+                if len(b_items) > 2: b_keys = '&'.join(b_items[0:2]) + '...'
+                else: b_keys = '&'.join(b_items[0:2])
+                contrast_key = f"{a_keys} — {b_keys}_{self.contrastListWidget.count() + 1}"
                 contrast_value = (tuple(a_items), tuple(b_items))
                 
                 # 添加到对比列表
@@ -459,6 +605,8 @@ class MainWindow(QMainWindow):
                 a_items, b_items = contrast_value
                 self.boxAListWidget.addItems(a_items)
                 self.boxBListWidget.addItems(b_items)
+                if len(self.main_data) > 0:
+                    self.calculate_dprime(item)
         except Exception as e:
             QMessageBox.critical(self, "错误", f"发生错误: {str(e)}")
 
@@ -581,12 +729,32 @@ class MainWindow(QMainWindow):
                     self.pre_onset = np.squeeze(f["global_params"]['pre_onset'][:])
                     self.post_onset = np.squeeze(f["global_params"]['post_onset'][:])
                     self.psth_range = np.squeeze(f["global_params"]['PsthRange'][:])
+                    stimtsv_path = ''.join([chr(int(num)) for num in np.squeeze(f["global_params"]['m_strImageListUsed'][()])])
+                    self.stim_path = '/'.join(stimtsv_path.split('\\')[0:-1]).replace('Z:', 'Y:') # TODO: delete replace
                 self.append_message(f"[Data] Pre onset {self.pre_onset}; Post onset {self.post_onset}")
+                self.append_message(f"[Stim] Stim path {self.stim_path}")
                 if len(self.psth_range) != (self.pre_onset + self.post_onset):
                     QMessageBox.critical(self, "错误", f"发生错误: GoodUnit global parameter 中 psthrange 与 preonset & postonset 不匹配")
+                
+                self.image_loader = ImageLoaderThread(self.stim_path, self.stimtsv_path, self.indo_df, self.selstim)
+                self.image_loader.image_loaded.connect(self.on_imge_loaded)
+                self.image_loader.progress.connect(self.append_message)
+                self.image_loader.start()
+                # if not self.select_stimname:
+                #     stimnames = pd.read_csv(stimtsv_path, sep='\t')['FileName'].values
+                #     unique_elements = np.unique(self.indo_df["FOB"].values)
+                #     for iele, sel in enumerate(self.selstim):
+                #         self.select_stimname[unique_elements[iele]] = stimnames[sel]
+                #     self.append_message(f"[Stim] Collect selected imagenames {self.select_stimname} ")
+                # # load imgs
+                # self.select_stim = {}
+                # for element, imgname in self.select_stimname.items():
+                #     cur_img = Image.open(os.path.join(self.stim_path, imgname))
+                #     self.select_stim[element] = cur_img
             else:
                 self.append_message(f"[Data] Fail to load meta data")
                 pass # TODO : operatiosn needed if more than 1 file 
+            
         else:
             QMessageBox.critical(self, "Error", f"无法识别有效且唯一的 response_matrix_img 文件！请检查数据目录")
 
@@ -619,12 +787,20 @@ class MainWindow(QMainWindow):
         # 向 textBrowser 添加一条启动消息
         self.append_message("[Log] 日志监视线程已启动...")
 
+    def on_imge_loaded(self, select_stim):
+        self.select_stim = select_stim
+        self.append_message("[Stim] stim dict 已经加载。")
+
     def open_fobscparam_dialog(self):
-        dialog = FobscparamDialog(self)
-        if dialog.exec() == QtWidgets.QDialog.DialogCode.Accepted:
-            lower_bound, upper_bound = dialog.get_values()
-            # Pass these parameters to the calculate dprime function
-            self.firing_window = (int(lower_bound), int(upper_bound))
+        try:
+            dialog = FobscparamDialog(self, param_dict=self.fobscparams)
+            if dialog.exec() == QtWidgets.QDialog.DialogCode.Accepted:
+                self.fobscparams = dialog.get_values()
+                if len(self.main_data) > 0:
+                    if self.contrastListWidget.currentItem():
+                        self.calculate_dprime(self.contrastListWidget.currentItem())
+        except Exception as e:
+            QMessageBox.critical(self, "对话框启动错误", f"{str(e)}")
 
     def run_kilosort_gui(self):
         try:
@@ -698,8 +874,8 @@ class MainWindow(QMainWindow):
             a_indices, b_indices = np.concatenate(a_indices), np.concatenate(b_indices)
 
             # Prefer & contrast
-            prefer = " ".join(list(a_items))
-            
+            prefer = "&".join(list(a_items))
+            self.firing_window = (self.fobscparams['firing_window']["lower_bound"], self.fobscparams['firing_window']["upper_bound"])
             # Extract data from maindata for groups A and B # TODO: preonset post onset logic
             firing_window_ms = (self.firing_window[0], self.firing_window[1])
             fire_indices = np.where((self.psth_range >= firing_window_ms[0]) & (self.psth_range < firing_window_ms[1]))[0]
@@ -711,8 +887,27 @@ class MainWindow(QMainWindow):
             mean_diff = np.mean(data_a, axis=0) - np.mean(data_b, axis=0)
             pooled_sd = np.sqrt((np.var(data_a, axis=0) + np.var(data_b, axis=0)) / 2)
             dprime = mean_diff / pooled_sd
+
+            #
+            N_a, N_b = len(a_items), len(b_items)
+            images_path_a = [ self.select_stim[_] for _ in a_items]
+            imgA = stitch_images_with_border(images_path_a, N_a, border_color="#d91619")
+            images_path_b = [ self.select_stim[_] for _ in b_items]
+            imgB = stitch_images_with_border(images_path_b, N_b, border_color="#1717d9")
+            width, height = imgA.size
+            # 计算拼接后图像的尺寸
+            gap = 15
+            new_width = width * 2 + gap
+            new_height = height
+            # 创建新图像
+            new_image = Image.new('RGB', (new_width, new_height), 'white')
+            # 粘贴图像到新图像的指定位置
+            new_image.paste(imgA, (0, 0))
+            new_image.paste(imgB, (width + gap, 0))
+            # 转换为 NumPy 数组
+            new_image_array = np.array(new_image)
             # Plot 
-            self.plot_mainfigure(fire_mat, dprime, prefer, title)
+            self.plot_mainfigure(fire_mat, dprime, new_image_array, prefer, title)
 
         except Exception as e:
             QMessageBox.warning(self, "Error", f"Error calculating dprime: {str(e)}")
@@ -722,51 +917,105 @@ class MainWindow(QMainWindow):
         r = lambda: random.randint(0, 255)
         return f'#{r():02x}{r():02x}{r():02x}'
     
-    def plot_mainfigure(self, fire_mat, dprime, prefer='Pref', title='Contrast'):
+    def plot_mainfigure(self, fire_mat, dprime, image_array, prefer='Pref', title='Contrast'):
         try:
             # Plot the dprime values and display in graphicsView
             from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
             from matplotlib.figure import Figure
             from matplotlib import pyplot as plt
-            from scipy.stats import zscore
 
-            draw_data = fire_mat[:, np.argsort(dprime)[::-1]]
-            draw_data = zscore(draw_data, axis=0)
             # 创建一个1行2列的图
-            figure = Figure(figsize=(13,4.5))
+            # 目标像素大小
+            width_px = 1370
+            height_px = 500
+            # 设置 DPI（例如 100）
+            dpi = 100
+            figure = Figure(figsize=(width_px / dpi, height_px / dpi))
             # 第1个子图：imshow
-            ax1 = figure.add_subplot(1, 3, 1)
-            im = ax1.imshow(draw_data.transpose(), cmap='RdBu_r', vmin=-2, vmax=2, aspect='auto')
+            ax1 = figure.add_subplot(1, 4, 1)
+            if self.fobscparams['redplot']["by_depth"]:
+                draw_data = fire_mat[:, np.argsort(np.squeeze(self.spikepos)[1,:])[::-1]]
+                ax1.set_ylabel(f"Neurons (sorted by depth)")
+            elif self.fobscparams['redplot']["by_dprime"]:
+                draw_data = fire_mat[:, np.argsort(dprime)[::-1]]
+                ax1.set_ylabel(f"Neurons (sorted by {prefer} d')")
+            draw_data = zscore(draw_data, axis=0)
+            vmin, vmax = self.fobscparams['redplot']['vmin'], self.fobscparams['redplot']['vmax'] 
+            im = ax1.imshow(draw_data.transpose(), cmap='RdBu_r', vmin=vmin, vmax=vmax, aspect='auto')
             ax1.set_title('RedPlot')
             ax1.set_xlabel('Pictures')
-            ax1.set_ylabel(f"Neurons (sorted by {prefer} d')")
             pos = ax1.get_position()
-            cax = figure.add_axes([pos.x1-0.055, pos.y0 + 0.15, 0.005, 0.5 * pos.height])
+            cax = figure.add_axes([pos.x1-0.065, pos.y0 + 0.15, 0.005, 0.5 * pos.height])
             cb = plt.colorbar(im, cax=cax)
             cb.ax.yaxis.set_ticks_position('right')
             cb.ax.yaxis.set_ticks([draw_data.min(), 0, draw_data.max()])
             cb.ax.tick_params(direction='out', labelsize=9)
+            for x in self.stim_start_end_indices:
+                ax1.axvline(x=x, lw=0.5, ls="--", color='k')
             # 第2个子图：plot
-            ax2 = figure.add_subplot(1, 3, 2)
-            ax2.plot(np.sort(dprime), np.arange(len(dprime)), lw=2, color=self.get_random_color())
-            ax2.axvline(x=-0.2, lw=1, color='k')
-            ax2.axvline(x=0.2, lw=1, color='k')
+            param_LSC = self.fobscparams['line_scatter']
+            msize, marker = param_LSC['markersize'], param_LSC['marker']
+            lwidth, lthres, lstyle = param_LSC['linewidth'], param_LSC['linethreshold'], param_LSC['linestyle']
+            ax2 = figure.add_subplot(1, 4, 2)
+            if param_LSC["cumplot"]:
+                ax2.plot(np.sort(dprime), np.arange(len(dprime)), lw=lwidth, ls=lstyle, color=self.get_random_color())
+            elif param_LSC["prbplot"]:
+                # 计算数据的最小值和最大值
+                min_val = np.min(dprime)
+                max_val = np.max(dprime)
+                step = 0.05
+                # 生成区间的边界（包括右边界）
+                bins = np.arange(min_val, max_val + step, step)
+                # 计算每个区间的计数
+                counts, _ = np.histogram(dprime, bins=bins)
+                # 计算每个区间的中值
+                mid_points = (bins[:-1] + bins[1:]) / 2
+                ax2.plot(mid_points, counts, lw=lwidth, ls=lstyle, color=self.get_random_color())
+            else:
+                ax2.plot(np.sort(dprime), np.arange(len(dprime)), lw=lwidth, ls=lstyle, color=self.get_random_color())
+            ax2.axvline(x=-lthres, lw=1, color='k')
+            ax2.axvline(x=lthres, lw=1, color='k')
             ax2.set_xlabel(f"{prefer} d'")
             ax2.set_ylabel(f"Neurons")
             ax2.set_title(f"d' Rank")
+            xlim = ax2.get_xlim()
+            ax2.set_xlim([-np.abs(xlim).max(), np.abs(xlim).max()])
             # 第3个子图：plot
-            ax3 = figure.add_subplot(1, 3, 3)
+            ax3 = figure.add_subplot(1, 4, 3)
             x = dprime
             y = np.squeeze(self.spikepos)[1,:]
-            ax3.scatter(x, y, s=40, color=self.get_random_color(), edgecolors='k', lw=0.5, zorder=4)
-            ax3.axvline(x=0.2, ls='--', color='k', alpha=0.7)
+            ax3color = self.get_random_color()
+            ax3.scatter(x, y, s=msize, color=ax3color, marker=marker, edgecolors='k', lw=0.5, alpha=0.5, zorder=4)
+            if param_LSC['linfit']:
+                slope, intercept = np.polyfit(y, x, 1)
+                x_fit = slope * y + intercept
+                # # 线性回归拟合
+                # slope, intercept, r_value, _, std_err = linregress(y, x)
+                # # 计算置信区间
+                # confidence = 0.95
+                # t_value = stats.t.ppf((1 + confidence) / 2, df=len(x) - 2)  # t 分布的临界值
+                # slope_ci = t_value * std_err  # 置信区间的宽度
+                # x_fit = slope * y + intercept
+                ax3.plot(x_fit, y, color=ax3color, ls=lstyle, lw=lwidth, zorder=5)
+                # # 绘制置信区间
+                # x_upper = (slope + slope_ci) * y + intercept
+                # x_lower = (slope - slope_ci) * y + intercept
+                # ax3.fill_betweenx(y, x_lower, x_upper, color='gray', alpha=0.2)
+            ax3.axvline(x=lthres, ls='--', color='k', alpha=0.7)
             ax3.set_title("d' ~ Depth")
             ax3.set_xlabel(f"{prefer} d'")
             ax3.set_ylabel(f"Depth (μm)")
+            xlim = ax3.get_xlim()
+            ax3.set_xlim([-np.abs(xlim).max(), np.abs(xlim).max()])
+
+            ax4 = figure.add_subplot(1, 4, 4)
+            ax4.imshow(image_array, aspect='auto')
+            ax4.axis('off')
+            ax4.set_title('Contrat Example Stim')
             # 自动调整布局
             # figure.tight_layout()
             # 设置子图之间的水平间距
-            figure.suptitle(title)
+            figure.suptitle(fr"{title}")
             figure.subplots_adjust(wspace=0.4) 
             figure.subplots_adjust(left=0.05, right=0.95)
             canvas = FigureCanvas(figure)
@@ -791,7 +1040,73 @@ class MainWindow(QMainWindow):
                 self.graphicsViewScene.addPixmap(scaled_pixmap)
         except Exception as e:
             QMessageBox.critical(self, "错误", f"load_figure 发生错误: {str(e)}")
-                
+
+def optimize_image_layout(N, canvas_width=150, canvas_height=400):
+    """
+    计算在指定画布内放置 N 张等宽高图片的最佳图像大小和布局。
+
+    参数:
+    N : int - 需要放置的图像数量
+    canvas_width : int - 画布宽度，默认为150px
+    canvas_height : int - 画布高度，默认为400px
+
+    返回:
+    max_s : int - 最佳图像大小（宽高相等）
+    final_cols : int - 每行的图像数量
+    final_rows : int - 每列的图像数量
+    """
+
+    max_s = 1  # 初始化最大图像尺寸
+
+    # 遍历不同的图像大小 s
+    for s in range(1, min(canvas_width, canvas_height) + 1):
+        # 计算在给定图像大小 s 下可以放置的列数和行数
+        cols = canvas_width // s
+        rows = canvas_height // s
+
+        # 计算在当前图像大小下的最大可放置图片数量
+        total_images = cols * rows
+
+        # 如果当前尺寸能放下N张图片，更新最大图像大小 s
+        if total_images >= N:
+            max_s = s
+        else:
+            break
+
+    # 计算最终行数和列数
+    final_cols = canvas_width // max_s
+    final_rows = canvas_height // max_s
+
+    # 返回结果
+    return max_s, final_cols, final_rows
+
+def stitch_images_with_border(image_list, N, canvas_width=175, canvas_height=420, border_size=8, border_color='black'):
+    # 优化图像布局
+    max_s, final_cols, final_rows = optimize_image_layout(N, canvas_width, canvas_height)
+    
+    # 创建画布
+    canvas = Image.new('RGB', (canvas_width, canvas_height), 'white')
+    
+    # 调整每张图片的大小并依次粘贴到画布
+    for i, img in enumerate(image_list[:N]):
+
+        # 为图像添加边框
+        img_with_border = ImageOps.expand(img, border=border_size, fill=border_color)
+        
+        # 将图像调整到最大大小 max_s（包含边框）
+        img_with_border = img_with_border.resize((max_s, max_s))
+        
+        # 计算图像在画布上的位置
+        col = i % final_cols
+        row = i // final_cols
+        x = col * max_s
+        y = row * max_s
+        
+        # 将带边框的图像粘贴到画布
+        canvas.paste(img_with_border, (x, y))
+    
+    return canvas
+
 # 自定义数据模型，用于将 Pandas DataFrame 与 QTableView 兼容
 class PandasModel(QAbstractTableModel):
     def __init__(self, df=pd.DataFrame(), parent=None):
