@@ -590,18 +590,14 @@ class MainWindow(QMainWindow):
                             else:
                                 self.append_message(f"[Data] Fail to load meta data")
                                 pass # TODO : operatiosn needed if more than 1 file 
-                            kilosort_dir = os.path.join(self.folder_path, 'kilosort_def_5block_97') # check file # TODO : more prepared
-                            if not os.path.exists(kilosort_dir):
-                                self.start_kilosort_process()
-                            else:
-                                self.append_message(f"[Kilosort] Aready exists kilosort_def_5block_97")
                     else:
-                        self.append_message(f"[FOBSC] No 'FOB' info in tsv, keep on kilosorting...")
-                        kilosort_dir = os.path.join(self.folder_path, 'kilosort_def_5block_97') # check file # TODO : more prepared
-                        if not os.path.exists(kilosort_dir):
-                            self.start_kilosort_process()
-                        else:
-                            self.append_message(f"[Kilosort] Aready exists kilosort_def_5block_97")
+                        self.append_message(f"[FOBSC] No 'FOB' info in tsv, skip data loading, keep on kilosorting...")
+                    # Kilosort
+                    kilosort_dir = os.path.join(self.folder_path, 'kilosort_def_5block_97') # check file # TODO : more prepared
+                    if not os.path.exists(kilosort_dir):
+                        self.start_kilosort_process()
+                    else:
+                        self.append_message(f"[Kilosort] Aready exists kilosort_def_5block_97")
             else: pass
         except Exception as e:
             QMessageBox.critical(self, "错误", f"Browser发生错误: {str(e)}")
