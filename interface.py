@@ -137,7 +137,7 @@ class MatlabEngineThread(QThread):
 
 class ProcessThread(QtCore.QThread):
     output_signal = QtCore.pyqtSignal(str)
-
+    finished_signal = QtCore.pyqtSignal(str)
     def __init__(self, command, working_directory, procname='Kilosort', parent=None):
         super().__init__(parent)
         self.command = command
@@ -182,7 +182,8 @@ class ProcessThread(QtCore.QThread):
 
             # 等待进程结束
             process.wait()
-            self.logger.info(f"[{self.command}] 进程完成。")
+            self.logger.info(f"[{self.procname}] 进程完成。")
+            self.finished_signal.emit('[Auto]')
         except Exception as e:
             self.logger.error(f"[{self.command}] 进程出错: {str(e)}")
 
@@ -738,6 +739,40 @@ class MainWindow(QMainWindow):
                 if self.folder_path is None:
                     QMessageBox.warning(self, "Warning", f"Start processing Warning: 等待选择数据文件夹")
 
+    def auto_dataprocess(self):
+        self.append_message("[Auto] Satr automatic data processing")
+        # 获取用户选择和参数
+        selections = {
+            'data_check': True,
+            'good_unit_strc': True,
+            'lfp_process': False
+        }
+        parameters = (60, 220, 20)
+
+        # 启动预处理线程
+        while True:
+            if (self.matlab_engine is not None) and (self.folder_path is not None):
+                self.matlab_engine.cd(self.folder_path)
+                self.matlab_engine.addpath(self.home)
+                utils_dir = os.path.join(self.home, 'util')
+                utils_full_path = self.matlab_engine.genpath(utils_dir)
+                self.matlab_engine.addpath(utils_full_path)
+                self.preprocessing_thread = PreprocessingThread(selections, parameters, self.matlab_engine)
+                self.mat_log_file = os.path.join(self.folder_path, 'process.log')
+                with open(self.mat_log_file, 'w') as file: pass
+                self.start_log_watcher(self.mat_log_file)
+                self.preprocessing_thread.progress.connect(self.append_message)  # 将进度信息连接到 append_message 方法
+                self.preprocessing_thread.finishedsignal.connect(self.on_preprocess_finished)
+                self.preprocessing_thread.start()
+                break
+            else:
+                time.sleep(1)
+                self.append_message('[Auto] waiting 1s...')
+                # if self.matlab_engine is None:
+                #     QMessageBox.warning(self, "Warning", f"Start processing Warning: 等待主进程激活 Matlab")
+                # if self.folder_path is None:
+                #     QMessageBox.warning(self, "Warning", f"Start processing Warning: 等待选择数据文件夹")
+
     def on_preprocess_finished(self, main_data):
         if len(main_data) > 0 :
             self.main_data = main_data
@@ -798,6 +833,8 @@ class MainWindow(QMainWindow):
                 procname='Kilosort'
             )
             self.kilosort_thread.output_signal.connect(self.append_message)
+            if '_fob' in self.folder_path:
+                self.kilosort_thread.finished_signal.connect(self.auto_dataprocess)
             self.kilosort_thread.start()
         except Exception as e:
             QMessageBox.critical(self, "Kilosort 启动错误", f"无法启动 Kilosort: {str(e)}")
