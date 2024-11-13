@@ -520,7 +520,6 @@ class MainWindow(QMainWindow):
                     if " 'info.tsv' 文件" in missing_files:
                         self.append_message(f"[file] 缺少以下文件: {', '.join(missing_files)}")
                         info_file, _ = QFileDialog.getOpenFileName(self, 'Select Info TSV File', self.folder_path, 'TSV Files (*.tsv)')
-                        info_file = [info_file]
                         null_tsv = False
                         if not info_file:
                             null_tsv = True
@@ -532,6 +531,8 @@ class MainWindow(QMainWindow):
                                 self.start_kilosort_process()
                             else:
                                 self.append_message(f"[Kilosort] Aready exists kilosort_def_5block_97")
+                        else:
+                            info_file = [info_file]
                     else:
                         # 假设：info.tsv 文件中包含需要显示的数据
                         info_file = [f for f in os.listdir(self.folder_path) if '_info.tsv' in f]
