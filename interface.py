@@ -343,21 +343,24 @@ class ImageLoaderThread(QThread):
         self.selstim = selstim
 
     def run(self):
-        # 在子线程中读取图像
-        # if not not self.select_stimname: # 如果 stimname 非空
-        stimnames = pd.read_csv(self.stimtsv_path, sep='\t')['FileName'].values # TODO: delete replace
-        unique_elements = np.unique(self.indo_df["FOB"].values)
-        self.select_stimname = {}
-        for iele, sel in enumerate(self.selstim):
-            self.select_stimname[unique_elements[iele]] = stimnames[sel]
-        self.progress.emit(f"[Stim] Collect selected imagenames {self.select_stimname} ")
-        # load imgs
-        select_stim = {}
-        for element, imgname in self.select_stimname.items():
-            cur_img = Image.open(os.path.join(self.stim_path, imgname)).resize((150,150))
-            select_stim[element] = cur_img
+        try:
+            # 在子线程中读取图像
+            # if not not self.select_stimname: # 如果 stimname 非空
+            stimnames = pd.read_csv(self.stimtsv_path, sep='\t')['FileName'].values
+            unique_elements = np.unique(self.indo_df["FOB"].values)
+            self.select_stimname = {}
+            for iele, sel in enumerate(self.selstim):
+                self.select_stimname[unique_elements[iele]] = stimnames[sel]
+            self.progress.emit(f"[Stim] Collect selected imagenames {self.select_stimname} ")
+            # load imgs
+            select_stim = {}
+            for element, imgname in self.select_stimname.items():
+                cur_img = Image.open(os.path.join(self.stim_path, imgname)).resize((150,150))
+                select_stim[element] = cur_img
 
-        self.image_loaded.emit(select_stim)  # 将图像数组传递给主线程
+            self.image_loaded.emit(select_stim)  # 将图像数组传递给主线程
+        except Exception as e:
+            self.progress.emit(f"[Stim] Error: {e}")
 
 # 假设：你已经创建了一个名为 base.ui 的文件，通过Qt Designer设计了基本界面。
 class MainWindow(QMainWindow):
@@ -570,7 +573,7 @@ class MainWindow(QMainWindow):
                             self.pre_onset = np.squeeze(f["global_params"]['pre_onset'][:])
                             self.post_onset = np.squeeze(f["global_params"]['post_onset'][:])
                             self.psth_range = np.squeeze(f["global_params"]['PsthRange'][:])
-                            self.stimtsv_path = ''.join([chr(int(num)) for num in np.squeeze(f["global_params"]['m_strImageListUsed'][()])]).replace('Z:', 'Y:')
+                            self.stimtsv_path = ''.join([chr(int(num)) for num in np.squeeze(f["global_params"]['m_strImageListUsed'][()])])
                             self.stim_path = '/'.join(self.stimtsv_path.split('\\')[0:-1])
                         self.append_message(f"[Data] Pre onset {self.pre_onset}; Post onset {self.post_onset}")
                         self.append_message(f"[Stim] Stim path {self.stim_path}")

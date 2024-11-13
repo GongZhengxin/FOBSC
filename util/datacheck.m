@@ -29,7 +29,8 @@ else
     Grid = '*Wait*To*Know\n';
     Notes = "*Wait*To*Hear";
     G_fileID = fopen('GRID.txt', 'w');
-    fprintf(G_fileID, [Grid, Notes]);
+    fprintf(G_fileID, Grid);
+    fprintf(G_fileID, Notes);
     fclose(G_fileID);
 end
 trial_ML_name = fullfile('processed',sprintf('ML_%s.mat',ml_name(1:end-5)));
