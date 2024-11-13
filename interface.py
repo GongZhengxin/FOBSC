@@ -521,83 +521,94 @@ class MainWindow(QMainWindow):
                         self.append_message(f"[file] 缺少以下文件: {', '.join(missing_files)}")
                         info_file, _ = QFileDialog.getOpenFileName(self, 'Select Info TSV File', self.folder_path, 'TSV Files (*.tsv)')
                         info_file = [info_file]
+                        null_tsv = False
                         if not info_file:
-                            QMessageBox.critical(self, 'Error', 'No valid info.tsv file selected.')
+                            null_tsv = True
+                            QMessageBox.warning(self, 'Warning', 'No valid info.tsv file selected, will only kilosort')
+                            self.append_message(f"[FOBSC] No tsv, skip data loading, keep on kilosorting...")
+                            # Kilosort
+                            kilosort_dir = os.path.join(self.folder_path, 'kilosort_def_5block_97') # check file # TODO : more prepared
+                            if not os.path.exists(kilosort_dir):
+                                self.start_kilosort_process()
+                            else:
+                                self.append_message(f"[Kilosort] Aready exists kilosort_def_5block_97")
                     else:
                         # 假设：info.tsv 文件中包含需要显示的数据
                         info_file = [f for f in os.listdir(self.folder_path) if '_info.tsv' in f]
-                    if len(info_file) == 1: info_file = info_file[0]
-                    else: QMessageBox.warning(self, "文件冗余", f"Info File 找到了 {len(info_file)} 个： {info_file}")
-                    info_file_path = os.path.join(self.folder_path, info_file)
-                    self.indo_df = pd.read_csv(info_file_path, sep='\t')  # 使用 pandas 读取 TSV 文件
-                    # 假设：base.ui 中有一个 QTableView，名为 tableView
-                    model = PandasModel(self.indo_df)  # 创建 Pandas 数据模型
-                    self.tableView.setModel(model)  # 设置模型以显示数据
-                    if "FOB" in self.indo_df.keys():
-                        # 提取 FOB 列的 unique 元素
-                        unique_elements = self.indo_df['FOB'].unique()
-                        # 假设：base.ui 中有一个 QListWidget，名为 listWidget_FOB
-                        self.listWidget_FOB.clear()
-                        self.listWidget_FOB.addItems(unique_elements)  # 将 unique 元素添加到 QListWidget 中
-                        self.append_message(f"[LOAD] {self.folder_path} !")
-                        stim_indx, selstim = [], []
-                        for element in unique_elements:
-                            stim_indx.append(np.where(self.indo_df['FOB'].values == element)[0].min())
-                            stim_indx.append(np.where(self.indo_df['FOB'].values == element)[0].max())
-                            selstim.append(np.where(self.indo_df['FOB'].values == element)[0].min())
-                        self.stim_start_end_indices = stim_indx
-                        self.selstim = selstim
-                        # get selected stimulus file name
-                        self.select_stimname = {}
-                        if "FileName" in self.indo_df.keys():
-                            for iele, sel in enumerate(selstim):
-                                self.select_stimname[unique_elements[iele]] = self.indo_df["FileName"].values[sel]
-                            self.append_message(f"[Stim] Collect selected imagenames {self.select_stimname} ")
                     
-                        processde_dir = os.path.join(self.folder_path, "processed")
-                        if os.path.exists(processde_dir):
-                            Respfile = [_ for _ in os.listdir(processde_dir) if ('RespMat_' in _) and ('.npy' in _)]
-                            if len(Respfile) == 1:
-                                self.main_data = np.load(os.path.join(processde_dir, Respfile[0]))
-                                self.append_message(f"[Data] Response Data {self.main_data.shape} Loaded, OK for FOB check")
-                            else:
-                                self.append_message(f"[Data] Fail to load Response Data")
-                                pass # TODO : operatiosn needed if more than 1 file 
-                            Spkfile = [_ for _ in os.listdir(processde_dir) if ('SpikePos_' in _) and ('.npy' in _)]
-                            if len(Spkfile) == 1:
-                                self.spikepos = np.load(os.path.join(processde_dir, Spkfile[0]))
-                                self.append_message(f"[Data] Spike pos data loaded {self.spikepos.shape}")
-                            else:
-                                self.append_message(f"[Data] Fail to load Response Data")
-                                pass # TODO : operatiosn needed if more than 1 file 
-                            GoodUnitStr = [_ for _ in os.listdir(processde_dir) if ('GoodUnit_' in _ )and ('.mat' in _)]
-                            if len(GoodUnitStr) == 1:
-                                with h5py.File(os.path.join(processde_dir, GoodUnitStr[0]), 'r') as f:
-                                    self.pre_onset = np.squeeze(f["global_params"]['pre_onset'][:])
-                                    self.post_onset = np.squeeze(f["global_params"]['post_onset'][:])
-                                    self.psth_range = np.squeeze(f["global_params"]['PsthRange'][:])
-                                    self.stimtsv_path = ''.join([chr(int(num)) for num in np.squeeze(f["global_params"]['m_strImageListUsed'][()])])
-                                    self.stim_path = '/'.join(self.stimtsv_path.split('\\')[0:-1])
-                                self.append_message(f"[Data] Pre onset {self.pre_onset}; Post onset {self.post_onset}")
-                                self.append_message(f"[Stim] Stim path {self.stim_path}")
-                                if len(self.psth_range) != (self.pre_onset + self.post_onset):
-                                    QMessageBox.critical(self, "错误", f"发生错误: GoodUnit global parameter 中 psthrange 与 preonset & postonset 不匹配")
-                                if not not self.select_stimname: # 如果 stimname 非空
-                                    self.image_loader = ImageLoaderThread(self.stim_path, self.stimtsv_path, self.indo_df, self.selstim)
-                                    self.image_loader.image_loaded.connect(self.on_imge_loaded)
-                                    self.image_loader.progress.connect(self.append_message)
-                                    self.image_loader.start()
-                            else:
-                                self.append_message(f"[Data] Fail to load meta data")
-                                pass # TODO : operatiosn needed if more than 1 file 
-                    else:
-                        self.append_message(f"[FOBSC] No 'FOB' info in tsv, skip data loading, keep on kilosorting...")
-                    # Kilosort
-                    kilosort_dir = os.path.join(self.folder_path, 'kilosort_def_5block_97') # check file # TODO : more prepared
-                    if not os.path.exists(kilosort_dir):
-                        self.start_kilosort_process()
-                    else:
-                        self.append_message(f"[Kilosort] Aready exists kilosort_def_5block_97")
+                    if not null_tsv:
+                        if len(info_file) == 1: info_file = info_file[0]
+                        else: QMessageBox.warning(self, "文件冗余", f"Info File 找到了 {len(info_file)} 个： {info_file}")
+                        info_file_path = os.path.join(self.folder_path, info_file)
+                        self.indo_df = pd.read_csv(info_file_path, sep='\t')  # 使用 pandas 读取 TSV 文件
+                        # 假设：base.ui 中有一个 QTableView，名为 tableView
+                        model = PandasModel(self.indo_df)  # 创建 Pandas 数据模型
+                        self.tableView.setModel(model)  # 设置模型以显示数据
+                        if "FOB" in self.indo_df.keys() :
+                            # 提取 FOB 列的 unique 元素
+                            unique_elements = self.indo_df['FOB'].unique()
+                            # 假设：base.ui 中有一个 QListWidget，名为 listWidget_FOB
+                            self.listWidget_FOB.clear()
+                            self.listWidget_FOB.addItems(unique_elements)  # 将 unique 元素添加到 QListWidget 中
+                            self.append_message(f"[LOAD] {self.folder_path} !")
+                            stim_indx, selstim = [], []
+                            for element in unique_elements:
+                                stim_indx.append(np.where(self.indo_df['FOB'].values == element)[0].min())
+                                stim_indx.append(np.where(self.indo_df['FOB'].values == element)[0].max())
+                                selstim.append(np.where(self.indo_df['FOB'].values == element)[0].min())
+                            self.stim_start_end_indices = stim_indx
+                            self.selstim = selstim
+                            # get selected stimulus file name
+                            self.select_stimname = {}
+                            if "FileName" in self.indo_df.keys():
+                                for iele, sel in enumerate(selstim):
+                                    self.select_stimname[unique_elements[iele]] = self.indo_df["FileName"].values[sel]
+                                self.append_message(f"[Stim] Collect selected imagenames {self.select_stimname} ")
+                        
+                            processde_dir = os.path.join(self.folder_path, "processed")
+                            if os.path.exists(processde_dir):
+                                Respfile = [_ for _ in os.listdir(processde_dir) if ('RespMat_' in _) and ('.npy' in _)]
+                                if len(Respfile) == 1:
+                                    self.main_data = np.load(os.path.join(processde_dir, Respfile[0]))
+                                    self.append_message(f"[Data] Response Data {self.main_data.shape} Loaded, OK for FOB check")
+                                else:
+                                    self.append_message(f"[Data] Fail to load Response Data")
+                                    pass # TODO : operatiosn needed if more than 1 file 
+                                Spkfile = [_ for _ in os.listdir(processde_dir) if ('SpikePos_' in _) and ('.npy' in _)]
+                                if len(Spkfile) == 1:
+                                    self.spikepos = np.load(os.path.join(processde_dir, Spkfile[0]))
+                                    self.append_message(f"[Data] Spike pos data loaded {self.spikepos.shape}")
+                                else:
+                                    self.append_message(f"[Data] Fail to load Response Data")
+                                    pass # TODO : operatiosn needed if more than 1 file 
+                                GoodUnitStr = [_ for _ in os.listdir(processde_dir) if ('GoodUnit_' in _ )and ('.mat' in _)]
+                                if len(GoodUnitStr) == 1:
+                                    with h5py.File(os.path.join(processde_dir, GoodUnitStr[0]), 'r') as f:
+                                        self.pre_onset = np.squeeze(f["global_params"]['pre_onset'][:])
+                                        self.post_onset = np.squeeze(f["global_params"]['post_onset'][:])
+                                        self.psth_range = np.squeeze(f["global_params"]['PsthRange'][:])
+                                        self.stimtsv_path = ''.join([chr(int(num)) for num in np.squeeze(f["global_params"]['m_strImageListUsed'][()])])
+                                        self.stim_path = '/'.join(self.stimtsv_path.split('\\')[0:-1])
+                                    self.append_message(f"[Data] Pre onset {self.pre_onset}; Post onset {self.post_onset}")
+                                    self.append_message(f"[Stim] Stim path {self.stim_path}")
+                                    if len(self.psth_range) != (self.pre_onset + self.post_onset):
+                                        QMessageBox.critical(self, "错误", f"发生错误: GoodUnit global parameter 中 psthrange 与 preonset & postonset 不匹配")
+                                    if not not self.select_stimname: # 如果 stimname 非空
+                                        self.image_loader = ImageLoaderThread(self.stim_path, self.stimtsv_path, self.indo_df, self.selstim)
+                                        self.image_loader.image_loaded.connect(self.on_imge_loaded)
+                                        self.image_loader.progress.connect(self.append_message)
+                                        self.image_loader.start()
+                                else:
+                                    self.append_message(f"[Data] Fail to load meta data")
+                                    pass # TODO : operatiosn needed if more than 1 file 
+                        else:
+                            self.append_message(f"[FOBSC] No 'FOB' info in tsv, skip data loading, keep on kilosorting...")
+                        # Kilosort
+                        kilosort_dir = os.path.join(self.folder_path, 'kilosort_def_5block_97') # check file # TODO : more prepared
+                        if not os.path.exists(kilosort_dir):
+                            self.start_kilosort_process()
+                        else:
+                            self.append_message(f"[Kilosort] Aready exists kilosort_def_5block_97")
             else: pass
         except Exception as e:
             QMessageBox.critical(self, "错误", f"Browser发生错误: {str(e)}")
