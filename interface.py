@@ -349,12 +349,11 @@ class ImageLoaderThread(QThread):
     def run(self):
         try:
             # 在子线程中读取图像
-            # if not not self.select_stimname: # 如果 stimname 非空
             stimnames = pd.read_csv(self.stimtsv_path, sep='\t')['FileName'].values
             unique_elements = np.unique(self.indo_df["FOB"].values)
             self.select_stimname = {}
-            for iele, sel in enumerate(self.selstim):
-                self.select_stimname[unique_elements[iele]] = stimnames[sel]
+            for iele, sel in self.selstim.items():
+                self.select_stimname[iele] = stimnames[sel]
             self.progress.emit(f"[Stim] Collect selected imagenames {self.select_stimname} ")
             # load imgs
             select_stim = {}
@@ -555,18 +554,18 @@ class MainWindow(QMainWindow):
                             self.listWidget_FOB.clear()
                             self.listWidget_FOB.addItems(unique_elements)  # 将 unique 元素添加到 QListWidget 中
                             self.append_message(f"[LOAD] {self.folder_path} !")
-                            stim_indx, selstim = [], []
+                            stim_indx, selstim = [], {}
                             for element in unique_elements:
                                 stim_indx.append(np.where(self.indo_df['FOB'].values == element)[0].min())
                                 stim_indx.append(np.where(self.indo_df['FOB'].values == element)[0].max())
-                                selstim.append(np.where(self.indo_df['FOB'].values == element)[0].min())
+                                selstim[element] = np.where(self.indo_df['FOB'].values == element)[0].min()
                             self.stim_start_end_indices = stim_indx
                             self.selstim = selstim
                             # get selected stimulus file name
                             self.select_stimname = {}
                             if "FileName" in self.indo_df.keys():
-                                for iele, sel in enumerate(selstim):
-                                    self.select_stimname[unique_elements[iele]] = self.indo_df["FileName"].values[sel]
+                                for iele, sel in selstim.items():
+                                    self.select_stimname[iele] = self.indo_df["FileName"].values[sel]
                                 self.append_message(f"[Stim] Collect selected imagenames {self.select_stimname} ")
                         
                             processde_dir = os.path.join(self.folder_path, "processed")
@@ -766,7 +765,7 @@ class MainWindow(QMainWindow):
             'good_unit_strc': True,
             'lfp_process': False
         }
-        parameters = (60, 220, 20)
+        parameters = (50, 300, 20)
 
         # 启动预处理线程
         while True:
@@ -817,7 +816,7 @@ class MainWindow(QMainWindow):
                 if len(self.psth_range) != (self.pre_onset + self.post_onset):
                     QMessageBox.critical(self, "错误", f"发生错误: GoodUnit global parameter 中 psthrange 与 preonset & postonset 不匹配")
                 
-                if not not self.indo_df: # 如果前面读取了tsv, 意味着是一个fob实验，就进行imageloader
+                if not (self.indo_df is None): # 如果前面读取了tsv, 意味着是一个fob实验，就进行imageloader
                     self.image_loader = ImageLoaderThread(self.stim_path, self.stimtsv_path, self.indo_df, self.selstim)
                     self.image_loader.image_loaded.connect(self.on_imge_loaded)
                     self.image_loader.progress.connect(self.append_message)
