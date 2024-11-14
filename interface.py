@@ -370,7 +370,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super(MainWindow, self).__init__()
         self.home = os.path.dirname(os.path.abspath(__file__))
-        ui_file = os.path.join(self.home, 'Base.ui') 
+        ui_file = os.path.join(self.home, 'Base2.ui') 
         uic.loadUi(ui_file, self)  # 动态加载 UI 文件
         self.fobscparams = self.default_fobscparam()
         # 假设：base.ui中有 browseButton, checkFilesButton, displayButton, folderLabel, tableView, listWidget_FOB 等 UI 元素。
