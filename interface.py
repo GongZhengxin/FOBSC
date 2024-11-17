@@ -965,7 +965,7 @@ class MainWindow(QMainWindow):
             pooled_sd = np.sqrt((np.var(data_a, axis=0) + np.var(data_b, axis=0)) / 2)
             dprime = mean_diff / pooled_sd
             if np.isnan(dprime).sum() > 0:
-                self.append_message(f"[Data] Compute dprime, find {np.isnan(dprime).sum() > 0} NaN, all replace to 0")
+                self.append_message(f"[Data] Compute dprime, find {np.isnan(dprime).sum()} NaN, all replace to 0")
             dprime = np.nan_to_num(dprime)
 
             #
@@ -1039,7 +1039,7 @@ class MainWindow(QMainWindow):
             cax = figure.add_axes([pos.x1-0.065, pos.y0 + 0.15, 0.005, 0.5 * pos.height])
             cb = plt.colorbar(im, cax=cax)
             cb.ax.yaxis.set_ticks_position('right')
-            cb.ax.yaxis.set_ticks([draw_data.min(), 0, draw_data.max()])
+            cb.ax.yaxis.set_ticks([np.nanmin(draw_data), 0, np.nanmax(draw_data)])
             cb.ax.yaxis.set_major_formatter(ticker.FormatStrFormatter('%.1g'))
             cb.ax.tick_params(direction='out', labelsize=7)
             for x in self.stim_start_end_indices:
