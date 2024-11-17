@@ -19,6 +19,11 @@ from scipy.stats import linregress
 import scipy.stats as stats
 from PIL import Image, ImageOps
 import logging
+from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.figure import Figure
+from matplotlib import pyplot as plt
+import matplotlib.ticker as ticker
+from sklearn.preprocessing import StandardScaler
 
 class LogHandler(logging.Handler):
     """Custom logging handler to send logs to a PyQt signal."""
@@ -959,6 +964,9 @@ class MainWindow(QMainWindow):
             mean_diff = np.mean(data_a, axis=0) - np.mean(data_b, axis=0)
             pooled_sd = np.sqrt((np.var(data_a, axis=0) + np.var(data_b, axis=0)) / 2)
             dprime = mean_diff / pooled_sd
+            if np.isnan(dprime).sum() > 0:
+                self.append_message(f"[Data] Compute dprime, find {np.isnan(dprime).sum() > 0} NaN, all replace to 0")
+            dprime = np.nan_to_num(dprime)
 
             #
             N_a, N_b = len(a_items), len(b_items)
@@ -1003,12 +1011,8 @@ class MainWindow(QMainWindow):
 
     def plot_mainfigure(self, fire_mat, dprime, image_array, prefer='Pref', title='Contrast'):
         try:
+            scaler = StandardScaler()
             # Plot the dprime values and display in graphicsView
-            from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
-            from matplotlib.figure import Figure
-            from matplotlib import pyplot as plt
-            import matplotlib.ticker as ticker
-
             # 创建一个1行2列的图
             # 目标像素大小
             width_px = 1370
@@ -1024,7 +1028,8 @@ class MainWindow(QMainWindow):
             elif self.fobscparams['redplot']["by_dprime"]:
                 draw_data = fire_mat[:, np.argsort(dprime)[::-1]]
                 ax1.set_ylabel(f"Neurons (sorted by {prefer} d')")
-            draw_data = zscore(draw_data, axis=0)
+            # draw_data = zscore(draw_data, axis=0)
+            draw_data = scaler.fit_transform(draw_data)
             vmin, vmax = self.fobscparams['redplot']['vmin'], self.fobscparams['redplot']['vmax'] 
             cmap = self.get_random_cmap()
             im = ax1.imshow(draw_data.transpose(), cmap=cmap, vmin=vmin, vmax=vmax, aspect='auto')
@@ -1048,8 +1053,8 @@ class MainWindow(QMainWindow):
                 ax2.plot(np.sort(dprime), np.arange(len(dprime)), lw=lwidth, ls=lstyle, color=self.get_random_color())
             elif param_LSC["prbplot"]:
                 # 计算数据的最小值和最大值
-                min_val = np.min(dprime)
-                max_val = np.max(dprime)
+                min_val = np.nanmin(dprime)
+                max_val = np.nanmax(dprime)
                 step = param_LSC['stepsize']
                 # 生成区间的边界（包括右边界）
                 bins = np.arange(min_val, max_val + step, step)

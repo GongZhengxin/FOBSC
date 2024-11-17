@@ -55,6 +55,8 @@ switch global_params.m_strctStimulusParams.onset_time
         base_line_time = -25:25;
         high_line_time = 60:280;
     otherwise
+        base_line_time = -100:0;
+        high_line_time = 50:500;
 
 end
 
@@ -106,9 +108,9 @@ for spike_num = 1:length(UnitStrc)
     for img = 1:img_size
         onset_t(img) = sum(img_idx==img);
     end
-    if(min(onset_t)<3)
-        continue
-    end
+    %if(min(onset_t)<3)
+    %    continue
+    %end
 
     psth_raw = zeros(size(raster_raw));
     for time_points = 1:size(psth_raw,2)
